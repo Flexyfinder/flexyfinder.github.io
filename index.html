@@ -3802,6 +3802,7 @@ function fillKund(id, side) {
 // ─── AVTAL: NUMMER, STATUS, UTSKICK OCH PDF ─────────────
 const AVTAL_VERSION = '1.0';
 const AVTAL_VERSION_DATUM = '2026-10-06';
+const AVTAL_ARKIV_EPOST = 'avtal@flexyfinder.com'; // får en hemlig kopia av varje avtalsmejl
 
 function escH(v) {
   return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -3888,7 +3889,7 @@ function mejlaPart(id, part) {
     USER_NAME || '',
     'Flexyfinder AB'
   ];
-  window.location.href = 'mailto:' + encodeURIComponent(till) + '?subject=' + encodeURIComponent(amne) + '&body=' + encodeURIComponent(rader.join('\n'));
+  window.location.href = 'mailto:' + encodeURIComponent(till) + '?bcc=' + encodeURIComponent(AVTAL_ARKIV_EPOST) + '&subject=' + encodeURIComponent(amne) + '&body=' + encodeURIComponent(rader.join('\n'));
   showToast('Bifoga PDF:en i mejlet och klicka sedan "Markera skickat"');
 }
 
@@ -3956,7 +3957,7 @@ function buildAvtalHtml(a) {
 <style>
   @page { size: A4; margin: 18mm 18mm 20mm 18mm; }
   * { box-sizing: border-box; }
-  body { font-family: Arial, Helvetica, sans-serif; font-size: 10pt; line-height: 1.45; color: #111; margin: 0; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 10pt; line-height: 1.45; color: #111; margin: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   h1 { font-size: 17pt; margin: 0 0 2px; letter-spacing: .5px; }
   h2 { font-size: 11pt; margin: 16px 0 6px; text-transform: uppercase; letter-spacing: .4px; break-after: avoid; }
   h3 { font-size: 10pt; margin: 10px 0 4px; break-after: avoid; }
