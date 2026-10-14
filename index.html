@@ -857,9 +857,12 @@
 
   <!-- AVTAL -->
   <div id="affSec-avtal" style="display:none">
-    <div style="margin-bottom:16px">
-      <div style="font-size:16px;font-weight:700">Avtal</div>
-      <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace">Inhyrare &amp; Uthyrare — avtal efter match</div>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+      <div>
+        <div style="font-size:16px;font-weight:700">Avtal</div>
+        <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace">Inhyrare &amp; Uthyrare — avtal efter match</div>
+      </div>
+      <input id="avtalSearch" type="search" placeholder="🔍 Sök företag, yrkesroll..." oninput="renderAvtalList()" style="padding:7px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-size:13px;width:240px;outline:none">
     </div>
     <div id="faktureringsVarningar"></div>
     <div id="avtalCards"><div style="color:var(--muted);font-size:13px;font-family:'DM Mono',monospace;padding:20px 0">Laddar...</div></div>
@@ -867,11 +870,15 @@
 
   <!-- FAKTURERING -->
   <div id="affSec-faktura" style="display:none">
-    <div style="margin-bottom:20px">
-      <div style="font-size:16px;font-weight:700">Fakturering</div>
-      <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace">Veckovis fakturering per uppdrag</div>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;flex-wrap:wrap;gap:10px">
+      <div>
+        <div style="font-size:16px;font-weight:700">Fakturering</div>
+        <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace">Veckovis fakturering per uppdrag</div>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="exportFakturorCSV()" style="font-size:12px">⬇ Exportera CSV</button>
     </div>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px" id="fakturaKpi"></div>
+    <div id="manadsoversikt" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px"></div>
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px">
       <div id="fakturaList"><div style="color:var(--muted);font-size:13px;font-family:'DM Mono',monospace;padding:20px 0">Laddar...</div></div>
     </div>
@@ -883,6 +890,17 @@
   <div id="kundregisterList"><div style="color:var(--muted);font-size:13px;font-family:'DM Mono',monospace;padding:20px 0">Inga kunder ännu — klicka "+ Lägg till kund" för att börja</div></div>
 </div>
 
+  </div>
+</div>
+
+<!-- KUNDHISTORIK MODAL -->
+<div class="modal-overlay" id="kundHistorikModal" onclick="if(event.target===this)closeModal('kundHistorikModal')">
+  <div class="modal" style="max-width:680px">
+    <div class="modal-title">
+      <span id="kundHistorikTitle">Kundhistorik</span>
+      <button class="close-btn" onclick="closeModal('kundHistorikModal')">×</button>
+    </div>
+    <div id="kundHistorikContent" style="font-size:13px"></div>
   </div>
 </div>
 
@@ -1231,6 +1249,7 @@
       <div class="form-group"><label class="form-label">Inhyraren bekräftade</label><input class="form-input" id="aInhBekr" type="datetime-local"></div>
       <div class="form-group"><label class="form-label">Uthyraren bekräftade</label><input class="form-input" id="aUthBekr" type="datetime-local"></div>
     </div>
+    <div class="form-group" style="margin-bottom:16px"><label class="form-label">Anteckningar</label><textarea class="form-input" id="aAnteckning" rows="3" placeholder="Interna noteringar om detta uppdrag..." style="resize:vertical;font-family:inherit"></textarea></div>
 
     <!-- INHYRARE -->
     <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--orange);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px;padding-top:14px;border-top:1px solid var(--border)">Inhyrare — hyr in personal</div>
@@ -2868,7 +2887,15 @@ function renderAvtalCards() {
     el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);font-size:13px;font-family:\'DM Mono\',monospace">Inga matchningar registrerade</div>';
     return;
   }
-  el.innerHTML = avtalList2.map(a => {
+  const q = (document.getElementById('avtalSearch')?.value||'').toLowerCase().trim();
+  const filteredAvtal = q ? avtalList2.filter(a => {
+    return [a.inhyrare_foretag,a.uthyrare_foretag,a.yrkesroll,a.resurs,a.arbetsplats,a.match_id,a.anteckning].some(v => v&&v.toLowerCase().includes(q));
+  }) : avtalList2;
+  if (!filteredAvtal.length) {
+    el.innerHTML = `<div style="text-align:center;padding:40px;color:var(--muted);font-size:13px;font-family:'DM Mono',monospace">Inga avtal matchar "${q}"</div>`;
+    return;
+  }
+  el.innerHTML = filteredAvtal.map(a => {
     const faks = fakturorList.filter(f => f.avtal_id === a.id);
     const ffFakturerat = faks.reduce((s,f) => s + (parseFloat(f.belopp_uthyrare)||0), 0);
     const ffBetalt = faks.filter(f => f.faktura_betald).reduce((s,f) => s + (parseFloat(f.belopp_uthyrare)||0), 0);
@@ -2911,16 +2938,29 @@ function renderAvtalCards() {
             ${a.match_id?`<span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--accent);letter-spacing:1px">MATCH ${a.match_id}</span>`:''}
             ${statusBadge}
           </div>
-          <div style="font-size:15px;font-weight:700">${inhForetag} <span style="color:var(--muted)">→</span> ${uthForetag}</div>
+          <div style="font-size:15px;font-weight:700"><span style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted" onclick="showKundHistorik('${inhForetag.replace(/'/g,'\\\'')}')" title="Visa historik för ${inhForetag}">${inhForetag}</span> <span style="color:var(--muted)">→</span> <span style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted" onclick="showKundHistorik('${uthForetag.replace(/'/g,'\\\'')}')" title="Visa historik för ${uthForetag}">${uthForetag}</span></div>
           ${a.yrkesroll||a.resurs?`<div style="font-size:12px;color:var(--muted2);margin-top:2px">${[a.yrkesroll,a.resurs].filter(Boolean).join(' · ')}</div>`:''}
         </div>
-        <div style="display:flex;gap:6px;flex-shrink:0">
-          <button class="btn btn-ghost btn-sm" onclick="generateAvtal('${a.id}','kund')" style="font-size:10px" title="Avtal för inhyraren (kunden)">📄 Kund</button>
-          <button class="btn btn-ghost btn-sm" onclick="generateAvtal('${a.id}','uthyrare')" style="font-size:10px" title="Avtal för uthyraren (leverantören)">📄 Uthyrare</button>
-          <button class="btn btn-ghost btn-sm" onclick="mailAvtal('${a.id}','kund')" style="font-size:10px" title="Skicka avtal till inhyraren">📧 Kund</button>
-          <button class="btn btn-ghost btn-sm" onclick="mailAvtal('${a.id}','uthyrare')" style="font-size:10px" title="Skicka avtal till uthyraren">📧 Uthyrare</button>
-          <button class="btn btn-ghost btn-sm" onclick="openFakturaModal(null,'${a.id}','${inhForetag.replace(/'/g,'')}')" style="font-size:10px">+ Faktura</button>
-          <button class="btn btn-ghost btn-sm" onclick="openAvtalModal('${a.id}')" style="font-size:10px">✏ Redigera</button>
+        <div style="display:flex;gap:10px;flex-shrink:0;flex-wrap:wrap;align-items:flex-start">
+          <div>
+            <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:3px">Granska avtal</div>
+            <div style="display:flex;gap:4px">
+              <button class="btn btn-ghost btn-sm" onclick="generateAvtal('${a.id}','kund')" style="font-size:10px" title="Förhandsgranska avtal för inhyraren">📄 Kund</button>
+              <button class="btn btn-ghost btn-sm" onclick="generateAvtal('${a.id}','uthyrare')" style="font-size:10px" title="Förhandsgranska avtal för uthyraren">📄 Uthyrare</button>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:3px">Skicka avtal</div>
+            <div style="display:flex;gap:4px">
+              <button class="btn btn-ghost btn-sm" onclick="mailAvtal('${a.id}','kund')" style="font-size:10px;${a.skickat_kund?'color:var(--green)':''}" title="Öppna Outlook med avtal till inhyraren${a.skickat_kund?' · Skickat '+a.skickat_kund:''}">📧 Kund${a.skickat_kund?` ✓`:''}</button>
+              <button class="btn btn-ghost btn-sm" onclick="mailAvtal('${a.id}','uthyrare')" style="font-size:10px;${a.skickat_uthyrare?'color:var(--green)':''}" title="Öppna Outlook med avtal till uthyraren${a.skickat_uthyrare?' · Skickat '+a.skickat_uthyrare:''}">📧 Uthyrare${a.skickat_uthyrare?` ✓`:''}</button>
+              <button class="btn btn-ghost btn-sm" onclick="markAvtalSkickat('${a.id}')" style="font-size:10px;${(a.skickat_kund&&a.skickat_uthyrare)?'color:var(--green)':''}" title="Markera avtal som skickade">✓ Skickat</button>
+            </div>
+          </div>
+          <div style="display:flex;gap:4px;align-self:flex-end;padding-bottom:0">
+            <button class="btn btn-ghost btn-sm" onclick="openFakturaModal(null,'${a.id}','${inhForetag.replace(/'/g,'')}')" style="font-size:10px">+ Faktura</button>
+            <button class="btn btn-ghost btn-sm" onclick="openAvtalModal('${a.id}')" style="font-size:10px">✏ Redigera</button>
+          </div>
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-family:'DM Mono',monospace;font-size:11px;margin-bottom:10px">
@@ -2943,18 +2983,20 @@ function renderAvtalCards() {
         ${varningBadge}
       </div>`:''}
       ${(uppdrags>0||ffFakturerat>0)?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+        <div style="padding:10px;background:rgba(34,197,94,0.07);border:1px solid rgba(34,197,94,0.2);border-radius:6px;font-family:'DM Mono',monospace;font-size:11px">
+          <div style="color:var(--muted);font-size:10px;margin-bottom:2px">Inhyraren betalar exkl. moms</div>
+          ${uppdrags>0?`<div style="font-weight:700;color:var(--green);font-size:13px">${Math.round(uppdrags).toLocaleString('sv-SE')} kr</div>`:'<div style="color:var(--muted);font-size:11px">–</div>'}
+          ${uppdrags>0?`<div style="font-size:10px;margin-top:2px;color:var(--muted2)">Kvar till uthyraren: <span style="color:var(--green);font-weight:600">${Math.round(uppdrags-avgift).toLocaleString('sv-SE')} kr</span></div>`:''}
+          ${ffBetalt>0?`<div style="font-size:10px;color:var(--muted2)">Betalt: <span style="color:var(--green);font-weight:600">${Math.round(ffBetalt).toLocaleString('sv-SE')} kr</span></div>`:''}
+        </div>
         <div style="padding:10px;background:rgba(249,115,22,0.07);border:1px solid rgba(249,115,22,0.2);border-radius:6px;font-family:'DM Mono',monospace;font-size:11px">
-          <div style="color:var(--muted);font-size:10px;margin-bottom:2px">FF-avgift inkl. moms</div>
-          ${uppdrags>0?`<div style="font-weight:700;color:var(--orange);font-size:13px">${Math.round(avgift+moms).toLocaleString('sv-SE')} kr</div>`:'<div style="color:var(--muted);font-size:11px">–</div>'}
+          <div style="color:var(--muted);font-size:10px;margin-bottom:2px">Uthyraren betalar FF-avgift</div>
+          ${uppdrags>0?`<div style="font-weight:700;color:var(--orange);font-size:13px">${Math.round(avgift+moms).toLocaleString('sv-SE')} kr inkl. moms</div>`:'<div style="color:var(--muted);font-size:11px">–</div>'}
           ${ffFakturerat>0?`<div style="font-size:10px;margin-top:4px;color:var(--muted2)">Fakturerat: <span style="color:var(--orange);font-weight:600">${Math.round(ffFakturerat).toLocaleString('sv-SE')} kr</span></div>`:''}
           ${ffSkickat>0?`<div style="font-size:10px;color:var(--muted2)">Skickat: <span style="color:var(--green);font-weight:600">${Math.round(ffSkickat).toLocaleString('sv-SE')} kr</span></div>`:''}
         </div>
-        <div style="padding:10px;background:rgba(34,197,94,0.07);border:1px solid rgba(34,197,94,0.2);border-radius:6px;font-family:'DM Mono',monospace;font-size:11px">
-          <div style="color:var(--muted);font-size:10px;margin-bottom:2px">Kvar till uthyraren</div>
-          ${uppdrags>0?`<div style="font-weight:700;color:var(--green);font-size:13px">${Math.round(uppdrags-avgift).toLocaleString('sv-SE')} kr</div>`:'<div style="color:var(--muted);font-size:11px">–</div>'}
-          ${ffBetalt>0?`<div style="font-size:10px;margin-top:4px;color:var(--muted2)">Betalt: <span style="color:var(--green);font-weight:600">${Math.round(ffBetalt).toLocaleString('sv-SE')} kr</span></div>`:''}
-        </div>
       </div>`:''}
+      ${a.anteckning?`<div style="padding:8px 10px;background:rgba(99,102,241,0.07);border:1px solid rgba(99,102,241,0.2);border-radius:6px;font-size:12px;color:var(--muted2);margin-bottom:8px;white-space:pre-wrap">📝 ${a.anteckning}</div>`:''}
       ${faks.length?`<div style="padding-top:8px;border-top:1px solid var(--border);font-family:'DM Mono',monospace;font-size:11px;color:var(--muted2);display:flex;gap:14px;flex-wrap:wrap">
         <span>📋 ${faks.length} faktura${faks.length>1?'r':''}</span>
         <span>FF-avgift: <strong style="color:var(--orange)">${Math.round(ffFakturerat).toLocaleString('sv-SE')} kr</strong></span>
@@ -2966,6 +3008,109 @@ function renderAvtalCards() {
   }).join('');
 }
 
+function showKundHistorik(foretag) {
+  document.getElementById('kundHistorikTitle').textContent = foretag + ' — historik';
+  const avtal = avtalList2.filter(a => a.inhyrare_foretag===foretag || a.uthyrare_foretag===foretag);
+  const faks = fakturorList.filter(f => {
+    const a = avtalList2.find(x=>x.id===f.avtal_id);
+    return a && (a.inhyrare_foretag===foretag || a.uthyrare_foretag===foretag);
+  });
+  const totFFAvgift = faks.reduce((s,f)=>s+(parseFloat(f.belopp_uthyrare)||0),0);
+  const totBetalt = faks.filter(f=>f.faktura_betald).reduce((s,f)=>s+(parseFloat(f.belopp_uthyrare)||0),0);
+  let html = `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px;font-family:'DM Mono',monospace">
+    <div style="background:var(--surface2);border-radius:8px;padding:12px"><div style="font-size:10px;color:var(--muted);margin-bottom:2px">Uppdrag totalt</div><div style="font-size:18px;font-weight:700">${avtal.length}</div></div>
+    <div style="background:var(--surface2);border-radius:8px;padding:12px"><div style="font-size:10px;color:var(--muted);margin-bottom:2px">FF-avgift fakturerat</div><div style="font-size:18px;font-weight:700;color:var(--orange)">${Math.round(totFFAvgift).toLocaleString('sv-SE')} kr</div></div>
+    <div style="background:var(--surface2);border-radius:8px;padding:12px"><div style="font-size:10px;color:var(--muted);margin-bottom:2px">Varav betalt</div><div style="font-size:18px;font-weight:700;color:var(--green)">${Math.round(totBetalt).toLocaleString('sv-SE')} kr</div></div>
+  </div>`;
+  if (avtal.length) {
+    html += `<div style="font-size:11px;font-weight:700;color:var(--muted);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Avtal</div>`;
+    html += avtal.map(a => {
+      const role = a.uthyrare_foretag===foretag ? 'Uthyrare' : 'Inhyrare';
+      const partner = a.uthyrare_foretag===foretag ? (a.inhyrare_foretag||'–') : (a.uthyrare_foretag||'–');
+      const aFaks = fakturorList.filter(f=>f.avtal_id===a.id);
+      const aFF = aFaks.reduce((s,f)=>s+(parseFloat(f.belopp_uthyrare)||0),0);
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid var(--border);font-family:'DM Mono',monospace;font-size:12px">
+        <div>
+          <span style="background:rgba(99,102,241,0.12);color:#818cf8;border-radius:4px;padding:1px 5px;font-size:10px;margin-right:6px">${role}</span>
+          <span style="font-weight:600">${partner}</span>
+          ${a.yrkesroll?`<span style="color:var(--muted);margin-left:6px">${a.yrkesroll}</span>`:''}
+          ${a.period_start?`<span style="color:var(--muted2);margin-left:6px">${a.period_start}–${a.period_end||'?'}</span>`:''}
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          ${aFF>0?`<span style="color:var(--orange);font-weight:600">${Math.round(aFF).toLocaleString('sv-SE')} kr</span>`:''}
+          ${a.status?`<span style="background:var(--surface2);border-radius:4px;padding:1px 6px;font-size:10px">${a.status}</span>`:''}
+          <button class="btn btn-ghost btn-sm" onclick="closeModal('kundHistorikModal');openAvtalModal('${a.id}')" style="font-size:10px">✏</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+  document.getElementById('kundHistorikContent').innerHTML = html;
+  document.getElementById('kundHistorikModal').style.display = 'flex';
+}
+
+function renderManadsOversikt() {
+  const el = document.getElementById('manadsoversikt');
+  if (!el) return;
+  // Gruppera fakturor per månad (baserat på faktura_skickad datum)
+  const byMonth = {};
+  fakturorList.forEach(f => {
+    if (!f.faktura_skickad) return;
+    const d = typeof f.faktura_skickad === 'string' ? f.faktura_skickad.slice(0,7) : null;
+    if (!d) return;
+    if (!byMonth[d]) byMonth[d] = { fakturerat: 0, betalt: 0, count: 0 };
+    byMonth[d].fakturerat += parseFloat(f.belopp_uthyrare)||0;
+    if (f.faktura_betald) byMonth[d].betalt += parseFloat(f.belopp_uthyrare)||0;
+    byMonth[d].count++;
+  });
+  const months = Object.keys(byMonth).sort();
+  if (!months.length) { el.style.display='none'; return; }
+  el.style.display='';
+  const maxVal = Math.max(...months.map(m => byMonth[m].fakturerat), 1);
+  el.innerHTML = `
+    <div style="font-size:12px;font-weight:700;margin-bottom:12px;color:var(--text)">Månadsöversikt — FF-avgift skickad</div>
+    <div style="display:flex;gap:6px;align-items:flex-end;height:80px;overflow-x:auto;padding-bottom:4px">
+      ${months.map(m => {
+        const v = byMonth[m].fakturerat;
+        const pct = Math.round((v/maxVal)*100);
+        const label = m.slice(5); // MM
+        const yearLabel = m.slice(2,4); // YY
+        return `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;min-width:36px;cursor:default" title="${m}: ${Math.round(v).toLocaleString('sv-SE')} kr (${byMonth[m].count} faktura${byMonth[m].count!==1?'r':''})">
+          <div style="font-size:9px;color:var(--orange);font-family:'DM Mono',monospace;font-weight:700">${Math.round(v/1000)}k</div>
+          <div style="width:28px;background:var(--orange);border-radius:3px 3px 0 0;opacity:0.8;height:${Math.max(pct*0.5,2)}px;transition:all 0.2s"></div>
+          <div style="font-size:9px;color:var(--muted);font-family:'DM Mono',monospace">${label}/${yearLabel}</div>
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
+function exportFakturorCSV() {
+  const headers = ['FF-nr','Avtal','Period start','Period slut','FF-avgift exkl','Moms','Inkl moms','Fortnox nr','Skickad','Betald'];
+  const rows = fakturorList.map(f => {
+    const a = avtalList2.find(x => x.id === f.avtal_id);
+    const uppdrag = a ? `${a.inhyrare_foretag||''} → ${a.uthyrare_foretag||''}` : '';
+    const exkl = parseFloat(f.belopp_uthyrare)||0;
+    const moms = Math.round(exkl*0.25);
+    return [
+      f.ff_nummer||'',
+      uppdrag,
+      f.period_start||'',
+      f.period_end||'',
+      Math.round(exkl),
+      moms,
+      Math.round(exkl+moms),
+      f.fortnox_nummer||'',
+      f.faktura_skickad ? (typeof f.faktura_skickad === 'string' ? f.faktura_skickad.slice(0,10) : 'Ja') : 'Nej',
+      f.faktura_betald ? 'Ja' : 'Nej'
+    ].map(v => `"${String(v).replace(/"/g,'""')}"`).join(';');
+  });
+  const csv = '﻿' + [headers.map(h=>`"${h}"`).join(';'), ...rows].join('\r\n');
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `flexyfinder-fakturor-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click(); URL.revokeObjectURL(url);
+}
+
 function renderFakturaList() {
   const kpiEl = document.getElementById('fakturaKpi');
   const listEl = document.getElementById('fakturaList');
@@ -2974,6 +3119,7 @@ function renderFakturaList() {
   const skickat = fakturorList.filter(f=>f.faktura_skickad).reduce((s,f) => s+(parseFloat(f.belopp_uthyrare)||0), 0);
   const betalt = fakturorList.filter(f=>f.faktura_betald).reduce((s,f) => s+(parseFloat(f.belopp_uthyrare)||0), 0);
   const ej_skickat = fakturorList.filter(f=>!f.faktura_skickad).length;
+  renderManadsOversikt();
   kpiEl.innerHTML = [
     ['Totalt fakturerat (skickat)', Math.round(skickat).toLocaleString('sv-SE') + ' kr', 'var(--orange)'],
     ['Varav betalt', Math.round(betalt).toLocaleString('sv-SE') + ' kr', betalt>0?'var(--green)':'var(--muted)'],
@@ -3044,12 +3190,12 @@ function checkFaktureringsVarningar() {
   const el = document.getElementById('faktureringsVarningar');
   if (!el) return;
   const today = new Date(); today.setHours(0,0,0,0);
-  // Avtal vars period slutar inom 7 dagar (exkl. redan avslutade)
+  // Avtal vars period slutar inom 14 dagar (exkl. redan avslutade)
   const snart = avtalList2.filter(a => {
     if (!a.period_end || a.status === 'Avslutat') return false;
     const pe = new Date(a.period_end); pe.setHours(0,0,0,0);
     const diff = Math.round((pe - today) / 86400000);
-    return diff >= 0 && diff <= 7;
+    return diff >= 0 && diff <= 14;
   });
   // Avtal vars period redan passerat och status ej 'Avslutat'
   const forbi = avtalList2.filter(a => {
@@ -3280,6 +3426,7 @@ function openAvtalModal(id) {
   document.getElementById('aStatus').value       = a?.status||'';
   document.getElementById('aInhBekr').value      = a?.inh_bekraftade||'';
   document.getElementById('aUthBekr').value      = a?.uth_bekraftade||'';
+  document.getElementById('aAnteckning').value   = a?.anteckning||'';
   // Inhyrare
   document.getElementById('aInhForetag').value   = a?.inhyrare_foretag||'';
   document.getElementById('aInhOrgNr').value     = a?.inhyrare_org_nr||'';
@@ -3329,6 +3476,7 @@ async function saveAvtal() {
     status: document.getElementById('aStatus').value||null,
     inh_bekraftade: document.getElementById('aInhBekr').value||null,
     uth_bekraftade: document.getElementById('aUthBekr').value||null,
+    anteckning: document.getElementById('aAnteckning').value.trim()||null,
     inhyrare_foretag: inhForetag,
     inhyrare_org_nr: document.getElementById('aInhOrgNr').value.trim(),
     inhyrare_kontakt: document.getElementById('aInhKontakt').value.trim(),
@@ -3367,6 +3515,32 @@ async function saveAvtal() {
     renderAvtalCards();
     showToast('✓ Match sparad');
   } catch(e) { showToast('Fel: '+e.message); }
+}
+
+async function markAvtalSkickat(id) {
+  const a = avtalList2.find(x => x.id === id);
+  if (!a) return;
+  const today = new Date().toISOString().slice(0,10);
+  const choices = [];
+  if (!a.skickat_kund) choices.push('kund');
+  if (!a.skickat_uthyrare) choices.push('uthyrare');
+  let kund = a.skickat_kund || null;
+  let uthyrare = a.skickat_uthyrare || null;
+  if (choices.length === 0) {
+    if (!confirm('Avtal redan markerade som skickade.\n\nÅterställ till ej skickat?')) return;
+    kund = null; uthyrare = null;
+  } else if (choices.length === 2) {
+    kund = today; uthyrare = today;
+  } else if (choices[0] === 'kund') {
+    kund = today;
+  } else {
+    uthyrare = today;
+  }
+  const { error } = await window._sb.from('avtal').update({ skickat_kund: kund, skickat_uthyrare: uthyrare }).eq('id', id);
+  if (error) { alert('Fel: ' + error.message); return; }
+  a.skickat_kund = kund;
+  a.skickat_uthyrare = uthyrare;
+  renderAvtalList();
 }
 
 function mailAvtal(id, mottagare) {
@@ -3473,7 +3647,7 @@ hr.divider{border:none;border-top:1px solid #ccc;margin:14px 0}
 
 <!-- ════ SIDA 1 – AVTALET ════ -->
 <h1>Uppdragsavtal</h1>
-<div class="sub-title">Personaluthyrning via Flexyfinder</div>
+<div class="sub-title">Uppdragsavtal</div>
 <div class="header-meta">
   <span><strong>Version:</strong> 1.0</span>
   <span><strong>Datum:</strong> ${today}</span>
