@@ -862,7 +862,7 @@
         <div style="font-size:16px;font-weight:700">Avtal</div>
         <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace">Inhyrare &amp; Uthyrare — avtal efter match</div>
       </div>
-      <input id="avtalSearch" type="search" placeholder="🔍 Sök företag, yrkesroll..." oninput="renderAvtalList()" style="padding:7px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-size:13px;width:240px;outline:none">
+      <input id="avtalSearch" type="search" placeholder="🔍 Sök företag, yrkesroll..." oninput="renderAvtalCards()" style="padding:7px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-size:13px;width:240px;outline:none">
     </div>
     <div id="faktureringsVarningar"></div>
     <div id="avtalCards"><div style="color:var(--muted);font-size:13px;font-family:'DM Mono',monospace;padding:20px 0">Laddar...</div></div>
@@ -2938,7 +2938,7 @@ function renderAvtalCards() {
             ${a.match_id?`<span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--accent);letter-spacing:1px">MATCH ${a.match_id}</span>`:''}
             ${statusBadge}
           </div>
-          <div style="font-size:15px;font-weight:700"><span style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted" onclick="showKundHistorik('${inhForetag.replace(/'/g,'\\\'')}')" title="Visa historik för ${inhForetag}">${inhForetag}</span> <span style="color:var(--muted)">→</span> <span style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted" onclick="showKundHistorik('${uthForetag.replace(/'/g,'\\\'')}')" title="Visa historik för ${uthForetag}">${uthForetag}</span></div>
+          <div style="font-size:15px;font-weight:700"><span style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted" data-kund="${inhForetag.replace(/"/g,'&quot;')}" onclick="showKundHistorik(this.dataset.kund)" title="Visa historik">${inhForetag}</span> <span style="color:var(--muted)">→</span> <span style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted" data-kund="${uthForetag.replace(/"/g,'&quot;')}" onclick="showKundHistorik(this.dataset.kund)" title="Visa historik">${uthForetag}</span></div>
           ${a.yrkesroll||a.resurs?`<div style="font-size:12px;color:var(--muted2);margin-top:2px">${[a.yrkesroll,a.resurs].filter(Boolean).join(' · ')}</div>`:''}
         </div>
         <div style="display:flex;gap:10px;flex-shrink:0;flex-wrap:wrap;align-items:flex-start">
@@ -3075,7 +3075,7 @@ function renderManadsOversikt() {
         const label = m.slice(5); // MM
         const yearLabel = m.slice(2,4); // YY
         return `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;min-width:36px;cursor:default" title="${m}: ${Math.round(v).toLocaleString('sv-SE')} kr (${byMonth[m].count} faktura${byMonth[m].count!==1?'r':''})">
-          <div style="font-size:9px;color:var(--orange);font-family:'DM Mono',monospace;font-weight:700">${Math.round(v/1000)}k</div>
+          <div style="font-size:9px;color:var(--orange);font-family:'DM Mono',monospace;font-weight:700">${v>=10000?Math.round(v/1000)+'k':Math.round(v).toLocaleString('sv-SE')}</div>
           <div style="width:28px;background:var(--orange);border-radius:3px 3px 0 0;opacity:0.8;height:${Math.max(pct*0.5,2)}px;transition:all 0.2s"></div>
           <div style="font-size:9px;color:var(--muted);font-family:'DM Mono',monospace">${label}/${yearLabel}</div>
         </div>`;
