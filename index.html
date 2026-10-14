@@ -2069,7 +2069,7 @@ function editCurrentContact() {
 
 function deleteCurrentContact() {
   if (!currentContactId) return;
-  if (!confirm('Ta bort den här kontakten och alla tillhörande samtal?')) return;
+  if (!confirm('Är du säker på att du vill radera kontakten och alla tillhörande samtal?')) return;
   contacts = contacts.filter(c => c.id !== currentContactId);
   calls = calls.filter(c => c.contactId !== currentContactId);
   save();
@@ -2647,7 +2647,7 @@ async function saveLiKontakt() {
 async function deleteLiKontakt() {
   const editId = document.getElementById('liEditId').value;
   if (!editId) return;
-  if (!confirm('Radera detta utskick?')) return;
+  if (!confirm('Är du säker på att du vill radera detta utskick?')) return;
   try {
     await sbDeleteLinkedinKontaktDb(editId);
     liKontakter = liKontakter.filter(l => l.id !== editId);
@@ -2738,7 +2738,7 @@ async function saveFbPost() {
 async function deleteFbPost() {
   const editId = document.getElementById('fbEditId').value;
   if (!editId) return;
-  if (!confirm('Radera detta inlägg?')) return;
+  if (!confirm('Är du säker på att du vill radera detta inlägg?')) return;
   try {
     await sbDeleteFbPostDb(editId);
     fbPosts = fbPosts.filter(p => p.id !== editId);
@@ -3030,7 +3030,7 @@ function renderFakturaList() {
             <td style="padding:7px 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f.faktura_skickad?`<span style="color:var(--accent)">✓ ${f.faktura_skickad}</span>`:'<span style="color:var(--muted)">–</span>'}</td>
             <td style="padding:7px 4px;color:var(--muted2)">${f.fortnox_nr||'–'}</td>
             <td style="padding:7px 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f.faktura_betald?`<span style="color:var(--green)">✓ ${f.faktura_betald}</span>`:'<span style="color:var(--muted)">–</span>'}</td>
-            <td style="padding:7px 4px;text-align:right">${!f.faktura_skickad?`<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();doDeleteFaktura('${f.id}')" style="color:var(--red);font-size:10px;padding:2px 6px">✕</button>`:''}</td>
+            <td style="padding:7px 4px;text-align:right"><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();doDeleteFaktura('${f.id}')" style="color:var(--red);font-size:10px;padding:2px 6px">✕</button></td>
           </tr>`).join('')}
         </tbody>
       </table>
@@ -3204,7 +3204,7 @@ async function saveKontroll() {
 }
 async function doDeleteKontroll(id) {
   const eid = id || document.getElementById('kEditId').value;
-  if (!eid || !confirm('Radera kontroll?')) return;
+  if (!eid || !confirm('Är du säker på att du vill radera?')) return;
   await sbDeleteKontrollDb(eid);
   kontroller = kontroller.filter(x=>x.id!==eid);
   closeModal('kontrollModal');
@@ -3533,23 +3533,7 @@ ${a.arbetstid?'Arbetstid: '+a.arbetstid+'.':''}</p>
 <div class="section-sub">5.14 Tillämplig lag</div>
 <p>Svensk rätt ska tillämpas på detta avtal.</p>
 <div class="section-sub">5.15 Ikraftträdande</div>
-<p>Avtalet träder i kraft när båda parter undertecknat det.</p>
-
-<hr class="divider">
-<div class="sign-grid">
-  <div class="sign-box">
-    <div class="sign-label">Leverantören — ${f(a.uthyrare_foretag)}</div>
-    <div class="sign-line"></div>
-    <div>Ort och datum: ___________________________</div>
-    <div style="margin-top:6px">Namnförtydligande: ${f(a.uthyrare_kontakt)}</div>
-  </div>
-  <div class="sign-box">
-    <div class="sign-label">Kunden — ${f(a.inhyrare_foretag)}</div>
-    <div class="sign-line"></div>
-    <div>Ort och datum: ___________________________</div>
-    <div style="margin-top:6px">Namnförtydligande: ${f(a.inhyrare_kontakt)}</div>
-  </div>
-</div>
+<p>Avtalet träder i kraft när båda parter godkänt uppdraget i Flexyfinder-plattformen. Digitalt godkännande i plattformen likställs med undertecknande.</p>
 
 <!-- ════ BILAGA 1 ════ -->
 <div class="page-break"></div>
@@ -3619,7 +3603,7 @@ ${mottagare === 'kund' ? `
 
 async function doDeleteAvtal() {
   const id = document.getElementById('aEditId').value;
-  if (!id || !confirm('Radera match och alla kopplade fakturor?')) return;
+  if (!id || !confirm('Är du säker på att du vill radera matchen och alla kopplade fakturor?')) return;
   await sbDeleteAvtalDb(id);
   avtalList2 = avtalList2.filter(x=>x.id!==id);
   closeModal('avtalModal');
@@ -3803,7 +3787,7 @@ function openFakturaModal(id, avtalId, foretag) {
   document.getElementById('fFortnoxNr').value   = f?.fortnox_nr||'';
   document.getElementById('fEditId').value      = f?.id||'';
   document.getElementById('fAvtalId').value     = aId||'';
-  document.getElementById('fDeleteBtn').style.display = (f && !f.faktura_skickad) ? '' : 'none';
+  document.getElementById('fDeleteBtn').style.display = f ? '' : 'none';
 
   // Uthyrare info block
   const uth = a ? [
@@ -3873,7 +3857,7 @@ async function saveFaktura() {
 }
 async function doDeleteFaktura(id) {
   const eid = id || document.getElementById('fEditId').value;
-  if (!eid || !confirm('Radera faktura?')) return;
+  if (!eid || !confirm('Är du säker på att du vill radera fakturan?')) return;
   await sbDeleteFakturaDb(eid);
   fakturorList = fakturorList.filter(x=>x.id!==eid);
   closeModal('fakturaModal');
@@ -3934,7 +3918,7 @@ function saveKundkort() {
 
 function doDeleteKund() {
   const id = document.getElementById('kkEditId').value;
-  if (!id || !confirm('Radera kunden från kundregistret?')) return;
+  if (!id || !confirm('Är du säker på att du vill radera kunden?')) return;
   kunder = kunder.filter(x=>x.id!==id);
   saveKunder();
   closeModal('kundkortModal');
