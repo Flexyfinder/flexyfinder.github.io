@@ -4318,7 +4318,7 @@ async function createAndPreviewFaktura(avtalId, foretag) {
   const lastFortnox = fakturorList.map(x => parseInt(x.fortnox_nr)||0).filter(n=>n>0).reduce((m,n)=>Math.max(m,n),0);
   const nextFortnox = lastFortnox > 0 ? String(lastFortnox + 1) : null;
   // Spara i Supabase
-  const newFak = { avtal_id: avtalId, faktura_nr: nextNr, belopp_uthyrare: belopp };
+  const newFak = { id: genId(), avtal_id: avtalId, faktura_nr: nextNr, belopp_uthyrare: belopp };
   if (nextFortnox) newFak.fortnox_nr = nextFortnox;
   try {
     const { data, error } = await getSB().from('fakturor').insert(newFak).select().single();
@@ -4450,6 +4450,7 @@ async function createKreditfaktura(fakturaId) {
 
   const nextNr = fakturorList.map(x => parseInt(x.faktura_nr)||0).reduce((m,n) => Math.max(m,n), 200) + 1;
   const newFak = {
+    id: genId(),
     avtal_id: orig.avtal_id,
     faktura_nr: nextNr,
     belopp_uthyrare: -origBelopp,
@@ -4473,6 +4474,7 @@ async function createReplacementFaktura(avtalId) {
   if (!a) { showToast('Avtal ej hittat'); return; }
   const nextNr = fakturorList.map(x => parseInt(x.faktura_nr)||0).reduce((m,n) => Math.max(m,n), 200) + 1;
   const newFak = {
+    id: genId(),
     avtal_id: avtalId,
     faktura_nr: nextNr,
     belopp_uthyrare: null
