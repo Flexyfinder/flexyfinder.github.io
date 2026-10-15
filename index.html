@@ -862,7 +862,13 @@
         <div style="font-size:16px;font-weight:700">Avtal</div>
         <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace">Inhyrare &amp; Uthyrare — avtal efter match</div>
       </div>
-      <input id="avtalSearch" type="search" placeholder="🔍 Sök företag, yrkesroll..." oninput="renderAvtalCards()" style="padding:7px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-size:13px;width:240px;outline:none">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <input id="avtalSearch" type="search" placeholder="🔍 Sök företag, yrkesroll..." oninput="renderAvtalCards()" style="padding:7px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-size:13px;width:240px;outline:none">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:var(--muted);user-select:none">
+          <input type="checkbox" id="visaArkivToggle" onchange="renderAvtalCards()" style="cursor:pointer;accent-color:var(--accent)">
+          <span id="arkivToggleLabel">Visa arkiv (0)</span>
+        </label>
+      </div>
     </div>
     <div id="faktureringsVarningar"></div>
     <div id="avtalCards"><div style="color:var(--muted);font-size:13px;font-family:'DM Mono',monospace;padding:20px 0">Laddar...</div></div>
@@ -2888,14 +2894,23 @@ function renderAvtalCards() {
     return;
   }
   const q = (document.getElementById('avtalSearch')?.value||'').toLowerCase().trim();
-  const filteredAvtal = q ? avtalList2.filter(a => {
-    return [a.inhyrare_foretag,a.uthyrare_foretag,a.yrkesroll,a.resurs,a.arbetsplats,a.match_id,a.anteckning].some(v => v&&v.toLowerCase().includes(q));
-  }) : avtalList2;
-  if (!filteredAvtal.length) {
-    el.innerHTML = `<div style="text-align:center;padding:40px;color:var(--muted);font-size:13px;font-family:'DM Mono',monospace">Inga avtal matchar "${q}"</div>`;
+  const visaArkiv = document.getElementById('visaArkivToggle')?.checked || false;
+  const aktiva = avtalList2.filter(a => a.status !== 'Avslutat');
+  const arkiverade = avtalList2.filter(a => a.status === 'Avslutat');
+  let pool = visaArkiv ? avtalList2 : aktiva;
+  if (q) pool = pool.filter(a => [a.inhyrare_foretag,a.uthyrare_foretag,a.yrkesroll,a.resurs,a.arbetsplats,a.match_id,a.anteckning].some(v => v&&v.toLowerCase().includes(q)));
+
+  // Uppdatera arkiv-toggle-label
+  const toggleLabel = document.getElementById('arkivToggleLabel');
+  if (toggleLabel) toggleLabel.textContent = `Visa arkiv (${arkiverade.length})`;
+
+  if (!pool.length) {
+    el.innerHTML = q
+      ? `<div style="text-align:center;padding:40px;color:var(--muted);font-size:13px;font-family:'DM Mono',monospace">Inga avtal matchar "${q}"</div>`
+      : `<div style="text-align:center;padding:40px;color:var(--muted);font-size:13px;font-family:'DM Mono',monospace">Inga aktiva avtal — ${arkiverade.length} i arkivet</div>`;
     return;
   }
-  el.innerHTML = filteredAvtal.map(a => {
+  el.innerHTML = pool.map(a => {
     const faks = fakturorList.filter(f => f.avtal_id === a.id);
     const ffFakturerat = faks.reduce((s,f) => s + (parseFloat(f.belopp_uthyrare)||0), 0);
     const ffBetalt = faks.filter(f => f.faktura_betald).reduce((s,f) => s + (parseFloat(f.belopp_uthyrare)||0), 0);
@@ -2930,11 +2945,14 @@ function renderAvtalCards() {
       : isOverdue
       ? `<span style="background:rgba(239,68,68,0.15);color:#ef4444;font-size:10px;font-family:'DM Mono',monospace;font-weight:700;border-radius:4px;padding:2px 7px;border:1px solid rgba(239,68,68,0.4)">⚠️ Avslutad — ej markerad</span>`
       : '';
-    const cardBorder = isOverdue ? 'rgba(239,68,68,0.5)' : isExpiringSoon ? 'rgba(239,68,68,0.35)' : 'var(--border)';
-    return `<div style="background:var(--surface);border:1px solid ${cardBorder};border-radius:10px;padding:18px;margin-bottom:14px">
+    const isArchived = a.status === 'Avslutat';
+    const cardBorder = isArchived ? 'var(--border)' : isOverdue ? 'rgba(239,68,68,0.5)' : isExpiringSoon ? 'rgba(239,68,68,0.35)' : 'var(--border)';
+    const cardOpacity = isArchived ? 'opacity:0.55;' : '';
+    return `<div style="background:var(--surface);border:1px solid ${cardBorder};border-radius:10px;padding:18px;margin-bottom:14px;${cardOpacity}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
         <div>
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+            ${a.avtal_nummer?`<span style="font-family:'DM Mono',monospace;font-size:11px;font-weight:700;color:var(--text);background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:1px 7px">AV-${a.avtal_nummer}</span>`:''}
             ${a.match_id?`<span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--accent);letter-spacing:1px">MATCH ${a.match_id}</span>`:''}
             ${statusBadge}
           </div>
@@ -2952,14 +2970,14 @@ function renderAvtalCards() {
           <div>
             <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:3px">Skicka avtal</div>
             <div style="display:flex;gap:4px">
-              <button class="btn btn-ghost btn-sm" onclick="mailAvtal('${a.id}','kund')" style="font-size:10px;${a.skickat_kund?'color:var(--green)':''}" title="Öppna Outlook med avtal till inhyraren${a.skickat_kund?' · Skickat '+a.skickat_kund:''}">📧 Kund${a.skickat_kund?` ✓`:''}</button>
-              <button class="btn btn-ghost btn-sm" onclick="mailAvtal('${a.id}','uthyrare')" style="font-size:10px;${a.skickat_uthyrare?'color:var(--green)':''}" title="Öppna Outlook med avtal till uthyraren${a.skickat_uthyrare?' · Skickat '+a.skickat_uthyrare:''}">📧 Uthyrare${a.skickat_uthyrare?` ✓`:''}</button>
-              <button class="btn btn-ghost btn-sm" onclick="markAvtalSkickat('${a.id}')" style="font-size:10px;${(a.skickat_kund&&a.skickat_uthyrare)?'color:var(--green)':''}" title="Markera avtal som skickade">✓ Skickat</button>
+              <button class="btn btn-ghost btn-sm" onclick="mailAvtal('${a.id}','kund')" style="font-size:10px;${a.skickat_kund?'color:var(--green);font-weight:700':''}" title="${a.skickat_kund?'Skickat '+a.skickat_kund:'Öppna Outlook med avtal till inhyraren'}">📧 Kund${a.skickat_kund?' ✓':''}</button>
+              <button class="btn btn-ghost btn-sm" onclick="mailAvtal('${a.id}','uthyrare')" style="font-size:10px;${a.skickat_uthyrare?'color:var(--green);font-weight:700':''}" title="${a.skickat_uthyrare?'Skickat '+a.skickat_uthyrare:'Öppna Outlook med avtal till uthyraren'}">📧 Uthyrare${a.skickat_uthyrare?' ✓':''}</button>
             </div>
           </div>
           <div style="display:flex;gap:4px;align-self:flex-end;padding-bottom:0">
             <button class="btn btn-ghost btn-sm" onclick="openFakturaModal(null,'${a.id}','${inhForetag.replace(/'/g,'')}')" style="font-size:10px">+ Faktura</button>
             <button class="btn btn-ghost btn-sm" onclick="openAvtalModal('${a.id}')" style="font-size:10px">✏ Redigera</button>
+            <button class="btn btn-ghost btn-sm" onclick="deleteAvtal('${a.id}')" style="font-size:10px;color:#ef4444">🗑</button>
           </div>
         </div>
       </div>
@@ -3464,6 +3482,19 @@ function openAvtalModal(id) {
   document.getElementById('avtalModal').classList.add('open');
 }
 
+async function deleteAvtal(id) {
+  const a = avtalList2.find(x => x.id === id);
+  if (!a) return;
+  const label = a.avtal_nummer ? `AV-${a.avtal_nummer}` : (a.match_id || id);
+  const namn = [a.inhyrare_foretag, a.uthyrare_foretag].filter(Boolean).join(' / ');
+  if (!confirm(`Är du säker på att du vill radera avtal ${label} (${namn})?\n\nDetta kan inte ångras.`)) return;
+  const { error } = await window._sb.from('avtal').delete().eq('id', id);
+  if (error) { alert('Fel vid radering: ' + error.message); return; }
+  const idx = avtalList2.findIndex(x => x.id === id);
+  if (idx > -1) avtalList2.splice(idx, 1);
+  renderAvtalCards();
+}
+
 async function saveAvtal() {
   const id = document.getElementById('aEditId').value || genId();
   const inhForetag = document.getElementById('aInhForetag').value.trim();
@@ -3505,6 +3536,14 @@ async function saveAvtal() {
     ff_avgift_procent: parseFloat(document.getElementById('aFfProcent').value)||8.5,
     created_at: Date.now()
   };
+  // Auto-tilldela avtalsnummer om nytt avtal
+  const existing = avtalList2.find(x=>x.id===id);
+  if (!existing || !existing.avtal_nummer) {
+    const maxNr = avtalList2.reduce((m,x) => Math.max(m, parseInt(x.avtal_nummer)||0), 199);
+    row.avtal_nummer = maxNr + 1;
+  } else {
+    row.avtal_nummer = existing.avtal_nummer;
+  }
   try {
     await sbSaveAvtal2(row);
     const idx = avtalList2.findIndex(x=>x.id===id);
@@ -3544,9 +3583,16 @@ async function markAvtalSkickat(id) {
   renderAvtalList();
 }
 
-function mailAvtal(id, mottagare) {
+async function mailAvtal(id, mottagare) {
   const a = avtalList2.find(x => x.id === id);
   if (!a) return;
+  // Spara skickat-datum automatiskt
+  const today = new Date().toISOString().slice(0,10);
+  const field = mottagare === 'kund' ? 'skickat_kund' : 'skickat_uthyrare';
+  if (!a[field]) {
+    const { error } = await window._sb.from('avtal').update({ [field]: today }).eq('id', id);
+    if (!error) { a[field] = today; renderAvtalCards(); }
+  }
   const period = a.period_start ? ' (period ' + a.period_start + ' – ' + (a.period_end||'') + ')' : '';
   const uppdrag = (a.uthyrare_foretag||'') + ' → ' + (a.inhyrare_foretag||'');
   if (mottagare === 'kund') {
@@ -3597,7 +3643,7 @@ function generateAvtal(id, mottagare) {
   const ffMoms    = Math.round(avgift * 0.25);
 
   const today  = new Date().toLocaleDateString('sv-SE');
-  const avnr   = a.match_id || '–';
+  const avnr   = a.avtal_nummer ? 'AV-' + a.avtal_nummer : (a.match_id || '–');
   const f = v  => v || '–';
   const fkr = v=> v > 0 ? Math.round(v).toLocaleString('sv-SE') + ' kr' : '–';
 
