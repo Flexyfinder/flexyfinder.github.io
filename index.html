@@ -3206,16 +3206,17 @@ function renderFakturaList() {
         ${g.foretag}
         <button class="btn btn-ghost btn-sm" onclick="openFakturaModal(null,'${avtalId}','${g.foretag}')" style="font-size:10px">+ Faktura</button>
       </div>
-      <table style="width:100%;border-collapse:collapse;font-size:12px;font-family:'DM Mono',monospace;table-layout:fixed">
+      <div style="overflow-x:auto">
+      <table style="width:100%;min-width:740px;border-collapse:collapse;font-size:12px;font-family:'DM Mono',monospace;table-layout:fixed">
         <colgroup>
-          <col style="width:70px"><col style="width:160px"><col style="width:130px"><col style="width:110px"><col style="width:90px"><col style="width:90px"><col style="width:180px">
+          <col style="width:65px"><col style="width:115px"><col style="width:110px"><col style="width:85px"><col style="width:75px"><col style="width:75px"><col style="width:215px">
         </colgroup>
         <thead><tr style="color:var(--muted);border-bottom:1px solid var(--border)">
           <th style="padding:6px 4px;text-align:left;font-weight:500">FF-nr</th>
           <th style="padding:6px 4px;text-align:left;font-weight:500">Period</th>
           <th style="padding:6px 4px;text-align:right;font-weight:500">FF-avgift</th>
           <th style="padding:6px 4px;text-align:left;font-weight:500">Skickad</th>
-          <th style="padding:6px 4px;text-align:left;font-weight:500">Fortnox nr</th>
+          <th style="padding:6px 4px;text-align:left;font-weight:500">Fortnox</th>
           <th style="padding:6px 4px;text-align:left;font-weight:500">Betald</th>
           <th></th>
         </tr></thead>
@@ -3229,14 +3230,17 @@ function renderFakturaList() {
             <td style="padding:7px 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f.faktura_skickad?`<span style="color:var(--accent)">✓ ${f.faktura_skickad}</span>`:'<span style="color:var(--muted)">–</span>'}</td>
             <td style="padding:7px 4px;color:var(--muted2)">${f.fortnox_nr||'–'}</td>
             <td style="padding:7px 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f.faktura_betald?`<span style="color:var(--green)">✓ ${f.faktura_betald}</span>`:'<span style="color:var(--muted)">–</span>'}</td>
-            <td style="padding:7px 4px;text-align:right;white-space:nowrap">
-              <button onclick="event.stopPropagation();generateFaktura('${f.id}')" style="font-size:11px;padding:4px 9px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;cursor:pointer;white-space:nowrap" title="Granska faktura">📄 Granska</button>
-              <button onclick="event.stopPropagation();mailFaktura('${f.id}')" style="font-size:11px;padding:4px 9px;background:${f.faktura_skickad?'#22c55e':'#2563eb'};color:#fff;border:none;border-radius:6px;cursor:pointer;white-space:nowrap" title="Skicka via Outlook">📧 ${f.faktura_skickad?'Skickad':'Skicka'}</button>
-              <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();doDeleteFaktura('${f.id}')" style="color:var(--red);font-size:10px;padding:2px 6px">✕</button>
+            <td style="padding:4px 4px">
+              <div style="display:flex;gap:4px;align-items:center;flex-wrap:nowrap">
+                <button onclick="event.stopPropagation();generateFaktura('${f.id}')" style="font-size:11px;padding:4px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;cursor:pointer;white-space:nowrap" title="Granska faktura">📄 Granska</button>
+                <button onclick="event.stopPropagation();mailFaktura('${f.id}')" style="font-size:11px;padding:4px 8px;background:${f.faktura_skickad?'#22c55e':'#2563eb'};color:#fff;border:none;border-radius:6px;cursor:pointer;white-space:nowrap">📧 ${f.faktura_skickad?'✓':'Skicka'}</button>
+                <button onclick="event.stopPropagation();doDeleteFaktura('${f.id}')" style="font-size:11px;padding:4px 8px;background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;border-radius:6px;cursor:pointer;white-space:nowrap" title="Radera faktura">🗑 Radera</button>
+              </div>
             </td>
           </tr>`).join('')}
         </tbody>
       </table>
+      </div>
     </div>`;
   }).join('');
 }
