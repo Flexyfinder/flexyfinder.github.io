@@ -3207,9 +3207,9 @@ function renderFakturaList() {
         <button class="btn btn-ghost btn-sm" onclick="createAndPreviewFaktura('${avtalId}','${g.foretag}')" style="font-size:10px">+ Faktura</button>
       </div>
       <div style="overflow-x:auto">
-      <table style="width:100%;min-width:810px;border-collapse:collapse;font-size:12px;font-family:'DM Mono',monospace;table-layout:fixed">
+      <table style="width:100%;min-width:835px;border-collapse:collapse;font-size:12px;font-family:'DM Mono',monospace;table-layout:fixed">
         <colgroup>
-          <col style="width:65px"><col style="width:115px"><col style="width:110px"><col style="width:85px"><col style="width:75px"><col style="width:75px"><col style="width:280px">
+          <col style="width:65px"><col style="width:110px"><col style="width:105px"><col style="width:80px"><col style="width:75px"><col style="width:70px"><col style="width:330px">
         </colgroup>
         <thead><tr style="color:var(--muted);border-bottom:1px solid var(--border)">
           <th style="padding:6px 4px;text-align:left;font-weight:500">FF-nr</th>
@@ -3236,6 +3236,7 @@ function renderFakturaList() {
                 <button onclick="event.stopPropagation();mailFaktura('${f.id}')" style="font-size:11px;padding:4px 8px;background:${f.faktura_skickad?'#22c55e':'#2563eb'};color:#fff;border:none;border-radius:6px;cursor:pointer;white-space:nowrap">📧 ${f.faktura_skickad?'✓':'Skicka'}</button>
                 <button onclick="event.stopPropagation();doDeleteFaktura('${f.id}')" style="font-size:11px;padding:4px 8px;background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;border-radius:6px;cursor:pointer;white-space:nowrap" title="Radera faktura">🗑 Radera</button>
                 ${(parseFloat(f.belopp_uthyrare)||0)>0?`<button onclick="event.stopPropagation();createKreditfaktura('${f.id}')" style="font-size:11px;padding:4px 8px;background:#fdf4ff;color:#7c3aed;border:1px solid #c4b5fd;border-radius:6px;cursor:pointer;white-space:nowrap" title="Kreditera faktura">↩ Kredit</button>`:''}
+                <button onclick="event.stopPropagation();sparaBada('${f.avtal_id}','${f.id}')" style="font-size:11px;padding:4px 8px;background:#f0fdf4;color:#16a34a;border:1px solid #86efac;border-radius:6px;cursor:pointer;white-space:nowrap" title="Öppna avtal + faktura i nya flikar">📁 Båda</button>
               </div>
             </td>
           </tr>`).join('')}
@@ -3710,7 +3711,7 @@ function generateFaktura(fakturaId) {
 
   const html = `<!DOCTYPE html>
 <html lang="sv"><head><meta charset="UTF-8">
-<title>${isKredit?'Kreditfaktura':'Faktura'} ${ffNr}</title>
+<title>${a.avtal_nummer?'AV-'+a.avtal_nummer+' ':''} ${isKredit?'Kreditfaktura':'Faktura'} ${ffNr}${kundNamn&&kundNamn!=='–'?' – '+kundNamn:''}</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Helvetica Neue',Arial,sans-serif;font-size:13px;color:#1a1d2e;background:#fff;padding:40px}
@@ -3814,8 +3815,8 @@ td{padding:10px 12px;font-size:13px;color:#333}
       <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-bottom:1px solid #e8eaf0;background:#f8f9fb">
         <div style="font-weight:700;font-size:14px">${isKredit?'🔴 Förhandsgranskning — Kreditfaktura':'Förhandsgranskning — Faktura'}</div>
         <div style="display:flex;gap:8px">
-          <button onclick="document.getElementById('fakturaIframe').contentWindow.print()" style="background:#2563eb;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;font-weight:600">🖨 Spara PDF</button>
-          <button onclick="closeFakturaPreview();mailFaktura('${fakturaId}')" style="background:#f97316;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;font-weight:600">📧 Skicka i Outlook</button>
+          <button onclick="openFakturaNewTab('${fakturaId}');setTimeout(()=>{closeFakturaPreview();mailFaktura('${fakturaId}');},300)" style="background:#f97316;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;font-weight:600">💾 Spara &amp; Skicka</button>
+          ${isKredit?`<button onclick="closeFakturaPreview();createReplacementFaktura('${f.avtal_id}')" style="background:#16a34a;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;font-weight:600">📄 Ny ersättningsfaktura</button>`:''}
           <button onclick="closeFakturaPreview()" style="background:#f0f2f7;border:1px solid #dde1ec;border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer;font-weight:600">✕ Stäng</button>
         </div>
       </div>
@@ -3823,6 +3824,26 @@ td{padding:10px 12px;font-size:13px;color:#333}
     </div>`;
   const iframe = document.getElementById('fakturaIframe');
   iframe.srcdoc = html;
+  // Cache for openFakturaNewTab
+  if (!window._fakturaHtmlCache) window._fakturaHtmlCache = {};
+  window._fakturaHtmlCache[fakturaId] = html;
+}
+function sparaBada(avtalId, fakturaId) {
+  // Öppna avtal (uthyrare) + faktura i varsina nya flikar
+  generateAvtal(avtalId, 'uthyrare');
+  setTimeout(() => {
+    generateFaktura(fakturaId);
+    setTimeout(() => openFakturaNewTab(fakturaId), 150);
+  }, 200);
+}
+function openFakturaNewTab(fakturaId) {
+  // Regenerate html (reuses generateFaktura logic via cache or re-call)
+  const html = window._fakturaHtmlCache && window._fakturaHtmlCache[fakturaId];
+  if (!html) { generateFaktura(fakturaId); setTimeout(() => openFakturaNewTab(fakturaId), 200); return; }
+  const w = window.open('', '_blank');
+  if (!w) { showToast('Popup blockerad — tillåt popups för den här sidan'); return; }
+  w.document.write(html);
+  w.document.close();
 }
 function closeFakturaPreview() {
   const m = document.getElementById('fakturaPreviewModal');
@@ -3897,12 +3918,13 @@ function generateAvtal(id, mottagare) {
 
   const today  = new Date().toLocaleDateString('sv-SE');
   const avnr   = a.avtal_nummer ? 'AV-' + a.avtal_nummer : (a.match_id || '–');
+  const avKundNamn = (mottagare === 'kund' ? (a.inhyrare_foretag || a.foretag) : a.uthyrare_foretag) || '';
   const f = v  => v || '–';
   const fkr = v=> v > 0 ? Math.round(v).toLocaleString('sv-SE') + ' kr' : '–';
 
   const html = `<!DOCTYPE html>
 <html lang="sv"><head><meta charset="UTF-8">
-<title>UPPDRAGSAVTAL ${avnr} — ${mottagare === 'kund' ? 'Kund' : 'Uthyrare'}</title>
+<title>${avnr} Avtal ${mottagare === 'kund' ? 'Kund' : 'Uthyrare'}${avKundNamn ? ' – ' + avKundNamn : ''}</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Times New Roman',Times,serif;font-size:10.5pt;color:#1a1a1a;background:#fff;padding:0}
@@ -4443,6 +4465,25 @@ async function createKreditfaktura(fakturaId) {
     _kreditAvNr = origNr;
     generateFaktura(data.id);
     showToast('✅ Kreditfaktura skapad: FF-' + nextNr);
+  } catch(e) { showToast('Fel: ' + e.message); }
+}
+
+async function createReplacementFaktura(avtalId) {
+  const a = avtalList2.find(x => x.id === avtalId);
+  if (!a) { showToast('Avtal ej hittat'); return; }
+  const nextNr = fakturorList.map(x => parseInt(x.faktura_nr)||0).reduce((m,n) => Math.max(m,n), 200) + 1;
+  const newFak = {
+    avtal_id: avtalId,
+    faktura_nr: nextNr,
+    belopp_uthyrare: null
+  };
+  try {
+    const { data, error } = await getSB().from('fakturor').insert(newFak).select().single();
+    if (error) throw error;
+    fakturorList.push(data);
+    renderFakturaList();
+    openFakturaModal(data.id);
+    showToast('📄 Ny faktura skapad — fyll i belopp och spara');
   } catch(e) { showToast('Fel: ' + e.message); }
 }
 
