@@ -3230,8 +3230,8 @@ function renderFakturaList() {
             <td style="padding:7px 4px;color:var(--muted2)">${f.fortnox_nr||'–'}</td>
             <td style="padding:7px 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f.faktura_betald?`<span style="color:var(--green)">✓ ${f.faktura_betald}</span>`:'<span style="color:var(--muted)">–</span>'}</td>
             <td style="padding:7px 4px;text-align:right;white-space:nowrap">
-              <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();generateFaktura('${f.id}')" style="font-size:10px;padding:2px 6px" title="Granska faktura">📄</button>
-              <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();mailFaktura('${f.id}')" style="font-size:10px;padding:2px 6px;${f.faktura_skickad?'color:var(--green);font-weight:700':''}" title="Skicka via Outlook">📧</button>
+              <button onclick="event.stopPropagation();generateFaktura('${f.id}')" style="font-size:11px;padding:4px 9px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;cursor:pointer;white-space:nowrap" title="Granska faktura">📄 Granska</button>
+              <button onclick="event.stopPropagation();mailFaktura('${f.id}')" style="font-size:11px;padding:4px 9px;background:${f.faktura_skickad?'var(--green)':'#2563eb'};color:#fff;border:none;border-radius:6px;cursor:pointer;white-space:nowrap;${f.faktura_skickad?'opacity:0.8':''}" title="Skicka via Outlook">📧 ${f.faktura_skickad?'Skickad':'Skicka'}</button>
               <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();doDeleteFaktura('${f.id}')" style="color:var(--red);font-size:10px;padding:2px 6px">✕</button>
             </td>
           </tr>`).join('')}
@@ -3698,7 +3698,7 @@ function generateFaktura(fakturaId) {
   const kundNamn = a.uthyrare_foretag || f.foretag || '–';
   const kundAdr  = [a.uthyrare_fakturaadress, [a.uthyrare_postnr, a.uthyrare_ort].filter(Boolean).join(' ')].filter(Boolean).join(', ') || '–';
   const kundOrgNr= a.uthyrare_org_nr ? 'Org.nr: ' + a.uthyrare_org_nr : '';
-  const beskrivn = [a.yrkesroll, a.resurs].filter(Boolean).join(' – ') || 'Bemanningstjänst';
+  const beskrivn = [a.yrkesroll, a.resurs].filter(Boolean).join(' – ') || '–';
   const timspec  = (a.timmar_totalt && a.timpris)
     ? `<tr><td colspan="2" style="padding:4px 0;color:#555;font-size:12px">${a.antal_personer||1} pers × ${a.timmar_totalt} h à ${Math.round(parseFloat(a.timpris)*(1-(parseFloat(a.ff_avgift_procent)||8.5)/100))} kr/h</td></tr>` : '';
 
@@ -3791,29 +3791,33 @@ td{padding:10px 12px;font-size:13px;color:#333}
 </div>
 </body></html>`;
 
-  // Visa i modal i stället för popup (popup blockeras av Chrome för lokala filer)
+  // Visa i modal med iframe så CSS laddas korrekt
   let modal = document.getElementById('fakturaPreviewModal');
   if (!modal) {
     modal = document.createElement('div');
     modal.id = 'fakturaPreviewModal';
-    modal.style.cssText = 'position:fixed;inset:0;z-index:500;background:rgba(0,0,0,0.6);display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:24px 16px';
-    modal.innerHTML = '<div id="fakturaPreviewInner" style="background:#fff;border-radius:12px;max-width:860px;width:100%;position:relative;padding:0;box-shadow:0 30px 80px rgba(0,0,0,0.3)"></div>';
-    modal.addEventListener('click', e => { if (e.target === modal) modal.style.display='none'; });
+    modal.style.cssText = 'position:fixed;inset:0;z-index:500;background:rgba(0,0,0,0.65);display:flex;align-items:center;justify-content:center;padding:20px';
+    modal.addEventListener('click', e => { if (e.target === modal) closeFakturaPreview(); });
     document.body.appendChild(modal);
   }
   modal.style.display = 'flex';
-  const inner = document.getElementById('fakturaPreviewInner');
-  // Extrahera body-innehållet ur html-strängen och injicera det
-  const bodyMatch = html.match(/<body>([\s\S]*)<\/body>/);
-  const bodyContent = bodyMatch ? bodyMatch[1] : html;
-  inner.innerHTML = `<div style="padding:40px">${bodyContent}</div>`;
-  // Fixa print-knappen
-  const printBtn = inner.querySelector('button');
-  if (printBtn) printBtn.onclick = () => {
-    const w = window.open('', '_blank');
-    w.document.write(html); w.document.close();
-    setTimeout(() => w.print(), 400);
-  };
+  modal.innerHTML = `
+    <div style="background:#fff;border-radius:14px;width:100%;max-width:880px;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 30px 80px rgba(0,0,0,0.35);overflow:hidden">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-bottom:1px solid #e8eaf0;background:#f8f9fb">
+        <div style="font-weight:700;font-size:14px">Förhandsgranskning — Faktura</div>
+        <div style="display:flex;gap:8px">
+          <button onclick="document.getElementById('fakturaIframe').contentWindow.print()" style="background:#2563eb;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;font-weight:600">🖨 Skriv ut / Spara PDF</button>
+          <button onclick="closeFakturaPreview()" style="background:#f0f2f7;border:1px solid #dde1ec;border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer;font-weight:600">✕ Stäng</button>
+        </div>
+      </div>
+      <iframe id="fakturaIframe" style="flex:1;border:none;width:100%;min-height:600px"></iframe>
+    </div>`;
+  const iframe = document.getElementById('fakturaIframe');
+  iframe.srcdoc = html;
+}
+function closeFakturaPreview() {
+  const m = document.getElementById('fakturaPreviewModal');
+  if (m) m.style.display = 'none';
 }
 
 async function mailFaktura(fakturaId) {
@@ -3833,7 +3837,7 @@ async function mailFaktura(fakturaId) {
   const body = encodeURIComponent(
 `Hej,
 
-Bifogat finner ni faktura ${ffNr} avseende bemanningstjänst, period ${period}.
+Bifogat finner ni faktura ${ffNr}.
 
 Fakturanummer: ${ffNr}
 Fakturadatum: ${fakDatum}
@@ -3841,8 +3845,6 @@ Förfallodatum: ${dueDate}
 Belopp inkl. moms: ${inkl.toLocaleString('sv-SE')} kr
 
 Betalning sker till Bankgiro 5128-4099 med referens ${ffNr}.
-
-Vänligen spara PDF-fakturan via 🖨-knappen och bifoga den i detta mejl.
 
 Med vänliga hälsningar,
 FlexyFinder AB
