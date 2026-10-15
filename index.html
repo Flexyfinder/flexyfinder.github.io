@@ -3646,41 +3646,38 @@ async function markAvtalSkickat(id) {
 async function mailAvtal(id, mottagare) {
   const a = avtalList2.find(x => x.id === id);
   if (!a) return;
-  // Spara skickat-datum automatiskt
-  const today = new Date().toISOString().slice(0,10);
-  const field = mottagare === 'kund' ? 'skickat_kund' : 'skickat_uthyrare';
-  if (!a[field]) {
-    const { error } = await window._sb.from('avtal').update({ [field]: today }).eq('id', id);
-    if (!error) { a[field] = today; renderAvtalCards(); }
-  }
   const period = a.period_start ? ' (period ' + a.period_start + ' – ' + (a.period_end||'') + ')' : '';
   const uppdrag = (a.uthyrare_foretag||'') + ' → ' + (a.inhyrare_foretag||'');
+  let to = '', subject = '', body = '';
   if (mottagare === 'kund') {
-    // Till inhyraren — ingen FF-avgift
-    const to      = a.inhyrare_epost || '';
-    const subject = encodeURIComponent('Uppdragsavtal – ' + uppdrag);
-    const body    = encodeURIComponent(
+    to      = a.inhyrare_epost || '';
+    subject = encodeURIComponent('Uppdragsavtal – ' + uppdrag);
+    body    = encodeURIComponent(
       'Hej,\n\nBifogat finner ni uppdragsavtalet för uppdraget ' + uppdrag + period + '.\n\n' +
-      'Vänliga hälsningar,\nFlexyfinder\nlars@flexyfinder.com'
+      'Vänliga hälsningar,\nFlexyFinder AB\nlars@flexyfinder.com'
     );
-    window.location.href = `mailto:${to}?subject=${subject}&body=${body}`;
   } else {
-    // Till uthyraren — med FF-avgift
-    const to      = a.uthyrare_faktura_epost || a.uthyrare_epost || '';
+    to      = a.uthyrare_faktura_epost || a.uthyrare_epost || '';
     const persons = parseInt(a.antal_personer)||1;
     const timmar  = parseFloat(a.timmar_totalt)||0;
     const pris    = parseFloat(a.timpris)||0;
     const pct     = parseFloat(a.ff_avgift_procent)||8.5;
     const avgift  = timmar && pris ? Math.max(Math.round(persons*timmar*pris*(pct/100)), 995) : 0;
     const moms    = Math.round(avgift*0.25);
-    const ffRad   = avgift ? '\n\nFlexyfinder-avgift: ' + avgift.toLocaleString('sv-SE') + ' kr exkl. moms (' + pct + '%) + ' + moms.toLocaleString('sv-SE') + ' kr moms = ' + (avgift+moms).toLocaleString('sv-SE') + ' kr inkl. moms.' : '';
-    const subject = encodeURIComponent('Uppdragsavtal – ' + uppdrag);
-    const body    = encodeURIComponent(
+    const ffRad   = avgift ? '\n\nFlexyFinder-avgift: ' + avgift.toLocaleString('sv-SE') + ' kr exkl. moms (' + pct + '%) + ' + moms.toLocaleString('sv-SE') + ' kr moms = ' + (avgift+moms).toLocaleString('sv-SE') + ' kr inkl. moms.' : '';
+    subject = encodeURIComponent('Uppdragsavtal – ' + uppdrag);
+    body    = encodeURIComponent(
       'Hej,\n\nBifogat finner ni uppdragsavtalet för uppdraget ' + uppdrag + period + '.' +
-      ffRad + '\n\nVänliga hälsningar,\nFlexyfinder\nlars@flexyfinder.com'
+      ffRad + '\n\nVänliga hälsningar,\nFlexyFinder AB\nlars@flexyfinder.com'
     );
-    window.location.href = `mailto:${to}?subject=${subject}&body=${body}`;
   }
+  const mailto = `mailto:${encodeURIComponent(to)}?subject=${subject}&body=${body}`;
+  const mailLink = document.createElement('a');
+  mailLink.href = mailto;
+  document.body.appendChild(mailLink);
+  mailLink.click();
+  document.body.removeChild(mailLink);
+  showToast('📧 Outlook öppnat — bifoga PDF och skicka. Markera sedan avtal som skickat manuellt.');
 }
 
 // ─── FAKTURA PDF-FÖRHANDSVISNING ─────────────────────────
@@ -3863,12 +3860,8 @@ lars@flexyfinder.com`);
   mailLink.click();
   document.body.removeChild(mailLink);
 
-  // Auto-markera skickad om ej redan markerad
-  if (!f.faktura_skickad) {
-    const today = new Date().toISOString().slice(0,10);
-    const { error } = await getSB().from('fakturor').update({ faktura_skickad: today }).eq('id', fakturaId);
-    if (!error) { f.faktura_skickad = today; renderFakturaList(); }
-  }
+  // Visa bekräftelse och låt användaren manuellt markera som skickad
+  showToast('📧 Outlook öppnat — öppna fakturan och klicka Skicka i Outlook. Sätt sedan datum i fakturan här.');
 }
 
 function generateAvtal(id, mottagare) {
