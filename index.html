@@ -3851,11 +3851,11 @@ lars@flexyfinder.com`);
   const bcc = FORTNOX_BCC ? `&bcc=${encodeURIComponent(FORTNOX_BCC)}` : '';
   const mailto = `mailto:${encodeURIComponent(mottagare)}?subject=${subject}${bcc}&body=${body}`;
   // Använd <a>-klick istället för location.href — öppnar Outlook mer reliabelt
-  const a = document.createElement('a');
-  a.href = mailto;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+  const mailLink = document.createElement('a');
+  mailLink.href = mailto;
+  document.body.appendChild(mailLink);
+  mailLink.click();
+  document.body.removeChild(mailLink);
 
   // Auto-markera skickad om ej redan markerad
   if (!f.faktura_skickad) {
@@ -4282,7 +4282,12 @@ function openFakturaModal(id, avtalId, foretag) {
   document.getElementById('fPeriodEnd').value   = f?.period_end||'';
   document.getElementById('fSkickad').value     = f?.faktura_skickad||'';
   document.getElementById('fBetald').value      = f?.faktura_betald||'';
-  document.getElementById('fFortnoxNr').value   = f?.fortnox_nr||'';
+  // Auto-föreslå nästa Fortnox-nummer vid ny faktura
+  const lastFortnoxNr = fakturorList
+    .map(x => parseInt(x.fortnox_nr)||0)
+    .filter(n => n > 0)
+    .reduce((m,n) => Math.max(m,n), 0);
+  document.getElementById('fFortnoxNr').value = f?.fortnox_nr || (lastFortnoxNr > 0 ? String(lastFortnoxNr + 1) : '');
   document.getElementById('fEditId').value      = f?.id||'';
   document.getElementById('fAvtalId').value     = aId||'';
   document.getElementById('fDeleteBtn').style.display = f ? '' : 'none';
