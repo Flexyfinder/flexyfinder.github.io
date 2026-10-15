@@ -3213,7 +3213,7 @@ function renderFakturaList() {
         <thead><tr style="color:var(--muted);border-bottom:1px solid var(--border)">
           <th style="padding:6px 4px;text-align:left;font-weight:500">FF-nr</th>
           <th style="padding:6px 4px;text-align:left;font-weight:500">Period</th>
-          <th style="padding:6px 4px;text-align:right;font-weight:500">FF-avgift exkl.</th>
+          <th style="padding:6px 4px;text-align:right;font-weight:500">FF-avgift</th>
           <th style="padding:6px 4px;text-align:left;font-weight:500">Skickad</th>
           <th style="padding:6px 4px;text-align:left;font-weight:500">Fortnox nr</th>
           <th style="padding:6px 4px;text-align:left;font-weight:500">Betald</th>
@@ -3223,7 +3223,9 @@ function renderFakturaList() {
           <tr style="border-bottom:1px solid var(--border);cursor:pointer" onclick="openFakturaModal('${f.id}')">
             <td style="padding:7px 4px;color:var(--muted2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">FF-${f.faktura_nr||'?'}</td>
             <td style="padding:7px 4px;color:var(--muted2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f.period_start||'–'} → ${f.period_end||'–'}</td>
-            <td style="padding:7px 4px;text-align:right;font-weight:700;color:var(--orange)">${f.belopp_uthyrare?Math.round(parseFloat(f.belopp_uthyrare)).toLocaleString('sv-SE')+' kr':'–'}</td>
+            <td style="padding:7px 4px;text-align:right">
+              ${f.belopp_uthyrare ? `<div style="font-weight:700;color:var(--orange)">${Math.round(parseFloat(f.belopp_uthyrare)).toLocaleString('sv-SE')} kr <span style="font-size:10px;color:var(--muted)">exkl.</span></div><div style="font-size:11px;color:var(--muted2)">${Math.round(parseFloat(f.belopp_uthyrare)*1.25).toLocaleString('sv-SE')} kr <span style="font-size:10px">inkl.</span></div>` : '–'}
+            </td>
             <td style="padding:7px 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f.faktura_skickad?`<span style="color:var(--accent)">✓ ${f.faktura_skickad}</span>`:'<span style="color:var(--muted)">–</span>'}</td>
             <td style="padding:7px 4px;color:var(--muted2)">${f.fortnox_nr||'–'}</td>
             <td style="padding:7px 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f.faktura_betald?`<span style="color:var(--green)">✓ ${f.faktura_betald}</span>`:'<span style="color:var(--muted)">–</span>'}</td>
@@ -3789,9 +3791,29 @@ td{padding:10px 12px;font-size:13px;color:#333}
 </div>
 </body></html>`;
 
-  const w = window.open('', '_blank', 'width=820,height=960');
-  w.document.write(html);
-  w.document.close();
+  // Visa i modal i stället för popup (popup blockeras av Chrome för lokala filer)
+  let modal = document.getElementById('fakturaPreviewModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'fakturaPreviewModal';
+    modal.style.cssText = 'position:fixed;inset:0;z-index:500;background:rgba(0,0,0,0.6);display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:24px 16px';
+    modal.innerHTML = '<div id="fakturaPreviewInner" style="background:#fff;border-radius:12px;max-width:860px;width:100%;position:relative;padding:0;box-shadow:0 30px 80px rgba(0,0,0,0.3)"></div>';
+    modal.addEventListener('click', e => { if (e.target === modal) modal.style.display='none'; });
+    document.body.appendChild(modal);
+  }
+  modal.style.display = 'flex';
+  const inner = document.getElementById('fakturaPreviewInner');
+  // Extrahera body-innehållet ur html-strängen och injicera det
+  const bodyMatch = html.match(/<body>([\s\S]*)<\/body>/);
+  const bodyContent = bodyMatch ? bodyMatch[1] : html;
+  inner.innerHTML = `<div style="padding:40px">${bodyContent}</div>`;
+  // Fixa print-knappen
+  const printBtn = inner.querySelector('button');
+  if (printBtn) printBtn.onclick = () => {
+    const w = window.open('', '_blank');
+    w.document.write(html); w.document.close();
+    setTimeout(() => w.print(), 400);
+  };
 }
 
 async function mailFaktura(fakturaId) {
@@ -3828,7 +3850,12 @@ lars@flexyfinder.com`);
 
   const bcc = FORTNOX_BCC ? `&bcc=${encodeURIComponent(FORTNOX_BCC)}` : '';
   const mailto = `mailto:${encodeURIComponent(mottagare)}?subject=${subject}${bcc}&body=${body}`;
-  window.location.href = mailto;
+  // Använd <a>-klick istället för location.href — öppnar Outlook mer reliabelt
+  const a = document.createElement('a');
+  a.href = mailto;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
 
   // Auto-markera skickad om ej redan markerad
   if (!f.faktura_skickad) {
