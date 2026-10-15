@@ -4293,7 +4293,7 @@ function openFakturaModal(id, avtalId, foretag) {
   document.getElementById('fFortnoxNr').value = f?.fortnox_nr || (lastFortnoxNr > 0 ? String(lastFortnoxNr + 1) : '');
   document.getElementById('fEditId').value      = f?.id||'';
   document.getElementById('fAvtalId').value     = aId||'';
-  document.getElementById('fDeleteBtn').style.display = f ? '' : 'none';
+  // fDeleteBtn removed — delete is in list view
 
   // Uthyrare info block
   const uth = a ? [
