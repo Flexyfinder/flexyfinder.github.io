@@ -1401,7 +1401,6 @@
     <input type="hidden" id="fPeriodEnd">
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px">
       <button class="btn btn-ghost" onclick="closeModal('fakturaModal')">Avbryt</button>
-      <button class="btn btn-danger btn-sm" id="fDeleteBtn" onclick="doDeleteFaktura()" style="display:none">🗑 Radera</button>
       <button class="btn btn-primary" onclick="saveFaktura()">Spara</button>
     </div>
   </div>
@@ -3861,8 +3860,12 @@ lars@flexyfinder.com`);
   mailLink.click();
   document.body.removeChild(mailLink);
 
-  // Visa bekräftelse och låt användaren manuellt markera som skickad
-  showToast('📧 Outlook öppnat — öppna fakturan och klicka Skicka i Outlook. Sätt sedan datum i fakturan här.');
+  // Auto-markera skickad med dagens datum
+  const today = new Date().toISOString().slice(0,10);
+  if (!f.faktura_skickad) {
+    const { error } = await getSB().from('fakturor').update({ faktura_skickad: today }).eq('id', fakturaId);
+    if (!error) { f.faktura_skickad = today; renderFakturaList(); }
+  }
 }
 
 function generateAvtal(id, mottagare) {
