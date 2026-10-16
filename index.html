@@ -1244,17 +1244,16 @@
     <!-- MATCHNING -->
     <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--accent);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px">Matchning</div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:20px">
-      <div class="form-group"><label class="form-label">Match-ID</label><input class="form-input" id="aMatchId" placeholder="FF-2025-0001"></div>
-      <div class="form-group"><label class="form-label">Avtalsstatus</label>
-        <select class="form-input" id="aStatus" style="cursor:pointer">
+      <div class="form-group"><label class="form-label">Avtalsnummer</label><input class="form-input" id="aMatchId" placeholder="Auto-genereras" readonly style="background:var(--surface2);color:var(--muted2);cursor:default"></div>
+      <div id="aStatusHidden" style="display:none"><select id="aStatus">
           <option value="">– Välj –</option>
           <option value="Signerat">Signerat</option>
           <option value="Aktivt">Aktivt</option>
           <option value="Avslutat">Avslutat</option>
         </select>
       </div>
-      <div class="form-group"><label class="form-label">Inhyraren bekräftade</label><input class="form-input" id="aInhBekr" type="datetime-local"></div>
-      <div class="form-group"><label class="form-label">Uthyraren bekräftade</label><input class="form-input" id="aUthBekr" type="datetime-local"></div>
+      <input type="hidden" id="aInhBekr">
+      <input type="hidden" id="aUthBekr">
     </div>
     <div class="form-group" style="margin-bottom:16px"><label class="form-label">Anteckningar</label><textarea class="form-input" id="aAnteckning" rows="3" placeholder="Interna noteringar om detta uppdrag..." style="resize:vertical;font-family:inherit"></textarea></div>
 
@@ -1641,6 +1640,20 @@ async function sbDeleteLinkedinKontaktDb(id) {
   if (error) throw new Error(error.message);
 }
 
+async function autoAvslutaAvtal() {
+  const today = new Date().toISOString().split('T')[0];
+  const toClose = avtalList2.filter(a => {
+    if (a.status === 'Avslutat') return false;
+    if (!a.period_end || a.period_end >= today) return false;
+    return fakturorList.some(f => f.avtal_id === a.id && f.faktura_skickad);
+  });
+  for (const a of toClose) {
+    const { error } = await getSB().from('avtal').update({ status: 'Avslutat' }).eq('id', a.id);
+    if (!error) a.status = 'Avslutat';
+  }
+  if (toClose.length > 0) showToast(`✓ ${toClose.length} avtal markerade som avslutade automatiskt`);
+}
+
 async function loadFromSupabase() {
   setStatus('syncing');
   kunder = JSON.parse(localStorage.getItem('crm_kunder_v1') || '[]');
@@ -1655,6 +1668,7 @@ async function loadFromSupabase() {
     fakturorList = fak || [];
     lastSyncHash = JSON.stringify([contacts, calls]);
     setStatus('ok');
+    await autoAvslutaAvtal();
     renderAll();
     if (currentContactId) openDetail(currentContactId);
   } catch(e) {
@@ -2978,8 +2992,7 @@ function renderAvtalCards() {
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
         <div>
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-            ${a.avtal_nummer?`<span style="font-family:'DM Mono',monospace;font-size:11px;font-weight:700;color:var(--text);background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:1px 7px">AV-${a.avtal_nummer}</span>`:''}
-            ${a.match_id?`<span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--accent);letter-spacing:1px">MATCH ${a.match_id}</span>`:''}
+            ${(a.match_id||a.avtal_nummer)?`<span style="font-family:'DM Mono',monospace;font-size:11px;font-weight:700;color:var(--text);background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:1px 7px">${a.match_id||'AV-'+a.avtal_nummer}</span>`:''}
             ${statusBadge}
           </div>
           <div style="font-size:15px;font-weight:700"><span style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted" data-kund="${inhForetag.replace(/"/g,'&quot;')}" onclick="showKundHistorik(this.dataset.kund)" title="Visa historik">${inhForetag}</span> <span style="color:var(--muted)">→</span> <span style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted" data-kund="${uthForetag.replace(/"/g,'&quot;')}" onclick="showKundHistorik(this.dataset.kund)" title="Visa historik">${uthForetag}</span></div>
@@ -3527,7 +3540,7 @@ function openAvtalModal(id) {
 async function avslutaAvtal(id) {
   const a = avtalList2.find(x => x.id === id);
   if (!a) return;
-  const label = a.avtal_nummer ? `AV-${a.avtal_nummer}` : (a.match_id || id);
+  const label = a.match_id || (a.avtal_nummer ? `AV-${a.avtal_nummer}` : id);
   if (!confirm(`Markera ${label} som avslutat?\n\nAvtalet flyttas till arkivet och döljs från huvudvyn.`)) return;
   const { error } = await window._sb.from('avtal').update({ status: 'Avslutat' }).eq('id', id);
   if (error) { alert('Fel: ' + error.message); return; }
@@ -3547,7 +3560,7 @@ async function aktiverAvtal(id) {
 async function deleteAvtal(id) {
   const a = avtalList2.find(x => x.id === id);
   if (!a) return;
-  const label = a.avtal_nummer ? `AV-${a.avtal_nummer}` : (a.match_id || id);
+  const label = a.match_id || (a.avtal_nummer ? `AV-${a.avtal_nummer}` : id);
   const namn = [a.inhyrare_foretag, a.uthyrare_foretag].filter(Boolean).join(' / ');
   if (!confirm(`Är du säker på att du vill radera avtal ${label} (${namn})?\n\nDetta kan inte ångras.`)) return;
   const { error } = await window._sb.from('avtal').delete().eq('id', id);
@@ -3567,9 +3580,9 @@ async function saveAvtal() {
     foretag: inhForetag || uthForetag,
     typ: 'match',
     match_id: document.getElementById('aMatchId').value.trim()||null,
-    status: document.getElementById('aStatus').value||null,
-    inh_bekraftade: document.getElementById('aInhBekr').value||null,
-    uth_bekraftade: document.getElementById('aUthBekr').value||null,
+    status: document.getElementById('aStatus').value || (avtalList2.find(x=>x.id===id)?.status) || 'Aktivt',
+    inh_bekraftade: document.getElementById('aInhBekr').value || (avtalList2.find(x=>x.id===id)?.inh_bekraftade) || new Date().toISOString().slice(0,16),
+    uth_bekraftade: document.getElementById('aUthBekr').value || (avtalList2.find(x=>x.id===id)?.uth_bekraftade) || new Date().toISOString().slice(0,16),
     anteckning: document.getElementById('aAnteckning').value.trim()||null,
     inhyrare_foretag: inhForetag,
     inhyrare_org_nr: document.getElementById('aInhOrgNr').value.trim(),
@@ -3605,6 +3618,11 @@ async function saveAvtal() {
     row.avtal_nummer = maxNr + 1;
   } else {
     row.avtal_nummer = existing.avtal_nummer;
+  }
+  // Auto-generera match_id (avtalsnummer) om det saknas
+  if (!row.match_id) {
+    const yr = new Date().getFullYear();
+    row.match_id = `FF-${yr}-${String(row.avtal_nummer).padStart(4,'0')}`;
   }
   try {
     await sbSaveAvtal2(row);
@@ -3701,17 +3719,18 @@ function generateFaktura(fakturaId) {
   const dueDate  = (() => { const d = new Date(fakDatum); d.setDate(d.getDate()+10); return d.toISOString().slice(0,10); })();
   const orgNr    = FF_ORG_NR || '[ORG-NUMMER]';
   const vatNr    = 'SE' + orgNr.replace(/\D/g,'') + '01';
-  const period   = [f.period_start, f.period_end].filter(Boolean).join(' – ') || '–';
+  const period   = [f.period_start||a.period_start, f.period_end||a.period_end].filter(Boolean).join(' – ') || '–';
   const kundNamn = a.uthyrare_foretag || f.foretag || '–';
   const kundAdr  = [a.uthyrare_fakturaadress, [a.uthyrare_postnr, a.uthyrare_ort].filter(Boolean).join(' ')].filter(Boolean).join(', ') || '–';
   const kundOrgNr= a.uthyrare_org_nr ? 'Org.nr: ' + a.uthyrare_org_nr : '';
-  const beskrivn = [a.yrkesroll, a.resurs].filter(Boolean).join(' – ') || '–';
+  const rollResurs = [a.yrkesroll, a.resurs].filter(Boolean).join(' – ');
+  const beskrivn = rollResurs || 'Personaluthyrning via FlexyFinder';
   const timspec  = (a.timmar_totalt && a.timpris)
     ? `<tr><td colspan="2" style="padding:4px 0;color:#555;font-size:12px">${a.antal_personer||1} pers × ${a.timmar_totalt} h à ${Math.round(parseFloat(a.timpris)*(1-(parseFloat(a.ff_avgift_procent)||8.5)/100))} kr/h</td></tr>` : '';
 
   const html = `<!DOCTYPE html>
 <html lang="sv"><head><meta charset="UTF-8">
-<title>${a.avtal_nummer?'AV-'+a.avtal_nummer+' ':''} ${isKredit?'Kreditfaktura':'Faktura'} ${ffNr}${kundNamn&&kundNamn!=='–'?' – '+kundNamn:''}</title>
+<title>${a.match_id||''} ${isKredit?'Kreditfaktura':'Faktura'} ${ffNr}${kundNamn&&kundNamn!=='–'?' – '+kundNamn:''}</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Helvetica Neue',Arial,sans-serif;font-size:13px;color:#1a1d2e;background:#fff;padding:40px}
@@ -3770,7 +3789,12 @@ td{padding:10px 12px;font-size:13px;color:#333}
     <thead><tr><th>Beskrivning</th><th>Period</th><th>Belopp exkl. moms</th></tr></thead>
     <tbody>
       <tr>
-        <td>${beskrivn}${timspec?'<br><span style="font-size:11px;color:#888">'+a.antal_personer+(a.antal_personer>1?' pers':'')+(a.timmar_totalt?' × '+a.timmar_totalt+' h':'')+'</span>':''}</td>
+        <td>
+          ${beskrivn}
+          ${a.inhyrare_foretag||a.foretag ? `<br><span style="font-size:11px;color:#888">Uppdrag för: ${a.inhyrare_foretag||a.foretag}</span>` : ''}
+          ${(a.match_id||a.avtal_nummer) ? `<br><span style="font-size:11px;color:#888">Avtal: ${a.match_id||'AV-'+a.avtal_nummer}</span>` : ''}
+          ${timspec?'<br><span style="font-size:11px;color:#888">'+a.antal_personer+(a.antal_personer>1?' pers':'')+(a.timmar_totalt?' × '+a.timmar_totalt+' h':'')+'</span>':''}
+        </td>
         <td style="color:#555">${period}</td>
         <td style="font-weight:700">${fkr(exkl)}</td>
       </tr>
@@ -3917,7 +3941,7 @@ function generateAvtal(id, mottagare) {
   const ffMoms    = Math.round(avgift * 0.25);
 
   const today  = new Date().toLocaleDateString('sv-SE');
-  const avnr   = a.avtal_nummer ? 'AV-' + a.avtal_nummer : (a.match_id || '–');
+  const avnr   = a.match_id || (a.avtal_nummer ? 'FF-' + new Date().getFullYear() + '-' + String(a.avtal_nummer).padStart(4,'0') : '–');
   const avKundNamn = (mottagare === 'kund' ? (a.inhyrare_foretag || a.foretag) : a.uthyrare_foretag) || '';
   const f = v  => v || '–';
   const fkr = v=> v > 0 ? Math.round(v).toLocaleString('sv-SE') + ' kr' : '–';
@@ -4318,7 +4342,8 @@ async function createAndPreviewFaktura(avtalId, foretag) {
   const lastFortnox = fakturorList.map(x => parseInt(x.fortnox_nr)||0).filter(n=>n>0).reduce((m,n)=>Math.max(m,n),0);
   const nextFortnox = lastFortnox > 0 ? String(lastFortnox + 1) : null;
   // Spara i Supabase
-  const newFak = { id: genId(), avtal_id: avtalId, faktura_nr: nextNr, belopp_uthyrare: belopp };
+  const newFak = { id: genId(), avtal_id: avtalId, faktura_nr: nextNr, belopp_uthyrare: belopp,
+    period_start: a.period_start||null, period_end: a.period_end||null };
   if (nextFortnox) newFak.fortnox_nr = nextFortnox;
   try {
     const { data, error } = await getSB().from('fakturor').insert(newFak).select().single();
