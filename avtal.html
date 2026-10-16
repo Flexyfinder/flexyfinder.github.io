@@ -36,6 +36,8 @@ async function load() {
   const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
   const { data: a, error } = await sb.from('avtal').select('*').eq('share_token', TOKEN).single();
   if (error || !a) { show('error'); return; }
+  // Logga öppnat (fire and forget)
+  sb.from('avtal').update({ opened_at: new Date().toISOString() }).eq('share_token', TOKEN);
   document.title = `${NR||''} Avtal – FlexyFinder`;
   document.getElementById('doc').innerHTML = renderAvtal(a, MOTTAGARE);
   show('doc');
