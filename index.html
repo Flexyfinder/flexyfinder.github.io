@@ -769,6 +769,13 @@
       <div class="table-wrap" id="dashForsenade">
         <div class="empty-state" style="font-family:'DM Mono',monospace;font-size:12px">Inga försenade</div>
       </div>
+
+      <div class="section-header" style="margin-top:28px">
+        <div class="section-title">📅 Kalender</div>
+      </div>
+      <div id="dashCalendar" style="background:var(--surface);border-radius:12px;padding:16px 20px;border:1px solid var(--border)">
+        <div class="empty-state" style="font-family:'DM Mono',monospace;font-size:12px">Laddar kalender...</div>
+      </div>
     </div>
 
     <!-- CONTACTS -->
@@ -2021,6 +2028,172 @@ function renderDashboard() {
       }).join('')}
     </tbody></table>`;
   }
+
+  // Kalender
+  renderCalendar();
+}
+
+// ─── KALENDER ────────────────────────────────────────────
+let _calYear  = new Date().getFullYear();
+let _calMonth = new Date().getMonth(); // 0-indexerad
+
+function sweHolidays(year) {
+  // Påsk via Meeus/Jones/Butcher
+  const a=year%19, b=Math.floor(year/100), c=year%100;
+  const d=Math.floor(b/4), e=b%4, f2=Math.floor((b+8)/25);
+  const g=Math.floor((b-f2+1)/3), h=(19*a+b-d-g+15)%30;
+  const i=Math.floor(c/4), k=c%4, l=(32+2*e+2*i-h-k)%7;
+  const m=Math.floor((a+11*h+22*l)/451);
+  const mo=Math.floor((h+l-7*m+114)/31);
+  const da=((h+l-7*m+114)%31)+1;
+  const easter=new Date(year, mo-1, da);
+  const pad=n=>String(n).padStart(2,'0');
+  const fix=(m,d)=>`${year}-${pad(m)}-${pad(d)}`;
+  const rel=(base,offs)=>{const x=new Date(base);x.setDate(x.getDate()+offs);return x.toISOString().slice(0,10);};
+  // Midsommarafton = fredag 19–25 juni
+  let mid=''; for(let d=19;d<=25;d++){const x=new Date(year,5,d);if(x.getDay()===5){mid=fix(6,d);break;}}
+  // Allhelgonadagen = lördag 31 okt – 6 nov
+  let allh=''; for(let d=31;d<=37;d++){const m2=d<=31?10:11;const dy=d<=31?d:d-31;const x=new Date(year,m2-1,dy);if(x.getDay()===6){allh=`${year}-${pad(m2)}-${pad(dy)}`;break;}}
+  const r = {};
+  r[fix(1,1)]='Nyårsdagen'; r[fix(1,6)]='Trettondag Jul';
+  r[rel(easter,-2)]='Långfredagen'; r[rel(easter,0)]='Påskdagen';
+  r[rel(easter,1)]='Annandag Påsk'; r[fix(5,1)]='Första Maj';
+  r[rel(easter,39)]='Kristi Himmelsfärdsdag'; r[fix(6,6)]='Nationaldagen';
+  r[rel(easter,49)]='Pingstdagen';
+  if(mid) r[mid]='Midsommarafton';
+  if(allh) r[allh]='Allhelgonadagen';
+  r[fix(12,24)]='Julafton'; r[fix(12,25)]='Juldagen';
+  r[fix(12,26)]='Annandag Jul'; r[fix(12,31)]='Nyårsafton';
+  return r;
+}
+
+function renderCalendar() {
+  const el = document.getElementById('dashCalendar');
+  if (!el) return;
+  const year = _calYear, month = _calMonth;
+  const holidays = Object.assign({}, sweHolidays(year-1), sweHolidays(year), sweHolidays(year+1));
+  const monthNames = ['Januari','Februari','Mars','April','Maj','Juni','Juli','Augusti','September','Oktober','November','December'];
+  const pad = n => String(n).padStart(2,'0');
+  const fmt = (y,m,d) => `${y}-${pad(m+1)}-${pad(d)}`;
+
+  // Bygg händelseindex per datum
+  const events = {};
+  const addEv = (date, type, item) => {
+    if (!date || date.length < 10) return;
+    const key = date.slice(0,10);
+    if (!events[key]) events[key] = { starts:[], ends:[], fakturor:[] };
+    events[key][type].push(item);
+  };
+  avtalList2.forEach(a => {
+    const label = (a.inhyrare_foretag||a.foretag||'–') + ' → ' + (a.uthyrare_foretag||'–');
+    if (a.period_start) addEv(a.period_start, 'starts', { label, id: a.id });
+    if (a.period_end)   addEv(a.period_end,   'ends',   { label, id: a.id });
+  });
+  fakturorList.forEach(f => {
+    if (f.faktura_skickad && !f.faktura_betald) {
+      const due = new Date(f.faktura_skickad); due.setDate(due.getDate()+10);
+      addEv(due.toISOString().slice(0,10), 'fakturor', {
+        label: 'FF-'+(f.faktura_nr||'?'),
+        foretag: f.foretag||'–',
+        belopp: Math.round(parseFloat(f.belopp_uthyrare)||0),
+        id: f.id
+      });
+    }
+  });
+
+  const daysInMonth = new Date(year, month+1, 0).getDate();
+  const firstDow    = new Date(year, month, 1).getDay(); // 0=sön
+  const startOffset = (firstDow + 6) % 7; // Mån=0
+  const todayStr    = new Date().toISOString().slice(0,10);
+
+  let cells = '';
+  for (let i = 0; i < startOffset; i++) cells += '<div></div>';
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = fmt(year, month, d);
+    const hol = holidays[dateStr];
+    const ev  = events[dateStr] || { starts:[], ends:[], fakturor:[] };
+    const isToday   = dateStr === todayStr;
+    const dow       = new Date(year, month, d).getDay();
+    const isWeekend = dow === 0 || dow === 6;
+    const isRed     = !!(hol || isWeekend);
+    const hasEv     = ev.starts.length + ev.ends.length + ev.fakturor.length > 0;
+
+    const badges = [
+      ev.starts.length   ? `<span style="display:inline-block;background:#16a34a;color:#fff;border-radius:10px;padding:1px 5px;font-size:9px;font-family:'DM Mono',monospace;line-height:1.6">▶${ev.starts.length}</span>` : '',
+      ev.ends.length     ? `<span style="display:inline-block;background:#ea580c;color:#fff;border-radius:10px;padding:1px 5px;font-size:9px;font-family:'DM Mono',monospace;line-height:1.6">■${ev.ends.length}</span>` : '',
+      ev.fakturor.length ? `<span style="display:inline-block;background:#1d4ed8;color:#fff;border-radius:10px;padding:1px 5px;font-size:9px;font-family:'DM Mono',monospace;line-height:1.6">kr${ev.fakturor.length}</span>` : '',
+    ].filter(Boolean).join('');
+
+    const bg    = isToday ? 'rgba(37,99,235,0.12)' : hol ? 'rgba(239,68,68,0.06)' : isWeekend ? 'rgba(239,68,68,0.03)' : 'transparent';
+    const bdr   = isToday ? '1.5px solid var(--accent)' : hasEv ? '1px solid rgba(37,99,235,0.2)' : '1px solid transparent';
+    const numColor = isToday ? 'var(--accent)' : isRed ? 'var(--red)' : 'var(--text)';
+
+    cells += `<div style="padding:5px 4px;border-radius:8px;min-height:58px;background:${bg};border:${bdr};cursor:${hasEv?'pointer':'default'}" ${hasEv?`onclick="showCalDay('${dateStr}')"`:''}>
+      <div style="font-size:12px;font-weight:${isToday?'800':'600'};color:${numColor}">${d}</div>
+      ${hol?`<div style="font-size:8px;color:var(--red);line-height:1.3;margin-top:1px;word-break:break-word">${hol}</div>`:''}
+      <div style="display:flex;flex-wrap:wrap;gap:2px;margin-top:3px">${badges}</div>
+    </div>`;
+  }
+
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <button onclick="_calMonth--;if(_calMonth<0){_calMonth=11;_calYear--;}renderCalendar();" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 14px;cursor:pointer;font-size:16px;color:var(--text)">‹</button>
+      <div style="font-weight:700;font-size:15px;color:var(--text)">${monthNames[month]} ${year}</div>
+      <button onclick="_calMonth++;if(_calMonth>11){_calMonth=0;_calYear++;}renderCalendar();" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 14px;cursor:pointer;font-size:16px;color:var(--text)">›</button>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px;font-size:11px;font-family:'DM Mono',monospace;color:var(--muted2)">
+      <span><span style="background:#16a34a;color:#fff;border-radius:8px;padding:1px 7px;font-size:9px">▶</span> Uppdrag startar</span>
+      <span><span style="background:#ea580c;color:#fff;border-radius:8px;padding:1px 7px;font-size:9px">■</span> Uppdrag slutar</span>
+      <span><span style="background:#1d4ed8;color:#fff;border-radius:8px;padding:1px 7px;font-size:9px">kr</span> Faktura förfaller</span>
+      <span><span style="color:var(--red);font-weight:700">Rött</span> = röd dag/helg</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px">
+      ${['Mån','Tis','Ons','Tor','Fre','Lör','Sön'].map(d=>`<div style="text-align:center;font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);padding:4px 0;font-weight:600">${d}</div>`).join('')}
+      ${cells}
+    </div>`;
+}
+
+function showCalDay(dateStr) {
+  const year = parseInt(dateStr.slice(0,4));
+  const hol  = sweHolidays(year)[dateStr];
+  const ev   = { starts:[], ends:[], fakturor:[] };
+  avtalList2.forEach(a => {
+    const label = (a.inhyrare_foretag||a.foretag||'–') + ' → ' + (a.uthyrare_foretag||'–');
+    if ((a.period_start||'').slice(0,10) === dateStr) ev.starts.push({ label, id: a.id });
+    if ((a.period_end  ||'').slice(0,10) === dateStr) ev.ends.push({ label, id: a.id });
+  });
+  fakturorList.forEach(f => {
+    if (f.faktura_skickad && !f.faktura_betald) {
+      const due = new Date(f.faktura_skickad); due.setDate(due.getDate()+10);
+      if (due.toISOString().slice(0,10) === dateStr)
+        ev.fakturor.push({ label:'FF-'+(f.faktura_nr||'?'), foretag:f.foretag||'–', belopp:Math.round(parseFloat(f.belopp_uthyrare)||0), id:f.id });
+    }
+  });
+
+  let html = `<div style="font-weight:700;font-size:15px;margin-bottom:14px;color:var(--text)">${dateStr}${hol?` — <span style="color:var(--red)">${hol}</span>`:''}</div>`;
+  if (ev.starts.length) html += `<div style="margin-bottom:12px"><div style="font-size:10px;font-family:'DM Mono',monospace;color:#16a34a;letter-spacing:1px;margin-bottom:6px">▶ UPPDRAG STARTAR</div>${ev.starts.map(x=>`<div style="padding:8px 10px;background:rgba(34,197,94,0.08);border-radius:7px;margin-bottom:4px;font-size:13px;font-weight:600;cursor:pointer" onclick="closeDayModal();showPage('affarer',document.querySelector('[onclick*=affarer]'));showAffSub('avtal',document.getElementById('affBtn-avtal'));openAvtalModal('${x.id}')">${x.label} →</div>`).join('')}</div>`;
+  if (ev.ends.length)   html += `<div style="margin-bottom:12px"><div style="font-size:10px;font-family:'DM Mono',monospace;color:#ea580c;letter-spacing:1px;margin-bottom:6px">■ UPPDRAG SLUTAR</div>${ev.ends.map(x=>`<div style="padding:8px 10px;background:rgba(249,115,22,0.08);border-radius:7px;margin-bottom:4px;font-size:13px;font-weight:600;cursor:pointer" onclick="closeDayModal();showPage('affarer',document.querySelector('[onclick*=affarer]'));showAffSub('avtal',document.getElementById('affBtn-avtal'));openAvtalModal('${x.id}')">${x.label}</div>`).join('')}</div>`;
+  if (ev.fakturor.length) html += `<div style="margin-bottom:12px"><div style="font-size:10px;font-family:'DM Mono',monospace;color:#1d4ed8;letter-spacing:1px;margin-bottom:6px">💰 FAKTUROR FÖRFALLER</div>${ev.fakturor.map(x=>`<div style="padding:8px 10px;background:rgba(37,99,235,0.08);border-radius:7px;margin-bottom:4px;cursor:pointer;display:flex;justify-content:space-between;align-items:center" onclick="closeDayModal();showPage('affarer',document.querySelector('[onclick*=affarer]'));showAffSub('faktura',document.getElementById('affBtn-faktura'));openFakturaModal('${x.id}')"><div><span style="font-weight:700;font-size:13px">${x.label}</span> <span style="color:var(--muted2);font-size:12px">${x.foretag}</span></div><span style="font-weight:700;color:var(--orange);font-size:14px">${x.belopp.toLocaleString('sv-SE')} kr</span></div>`).join('')}</div>`;
+  if (!ev.starts.length && !ev.ends.length && !ev.fakturor.length && !hol) html += '<div style="color:var(--muted2);font-family:\'DM Mono\',monospace;font-size:12px">Inga händelser</div>';
+
+  let overlay = document.getElementById('calDayOverlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'calDayOverlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px';
+    overlay.addEventListener('click', e => { if (e.target === overlay) closeDayModal(); });
+    document.body.appendChild(overlay);
+  }
+  overlay.innerHTML = `<div style="background:var(--surface);border-radius:14px;padding:24px 28px;max-width:460px;width:100%;box-shadow:0 8px 40px rgba(0,0,0,0.35);position:relative;max-height:80vh;overflow-y:auto">
+    <button onclick="closeDayModal()" style="position:absolute;top:14px;right:14px;background:none;border:none;font-size:22px;cursor:pointer;color:var(--muted2);line-height:1">×</button>
+    ${html}
+  </div>`;
+  overlay.style.display = 'flex';
+}
+
+function closeDayModal() {
+  const o = document.getElementById('calDayOverlay');
+  if (o) o.style.display = 'none';
 }
 
 // ─── CONTACTS ───────────────────────────────────────────
@@ -4051,6 +4224,11 @@ Med vänliga hälsningar,
 FlexyFinder AB
 lars@flexyfinder.com`);
 
+  // Auto-skapa i Fortnox om ansluten och ej redan registrerad
+  if (FORTNOX_REFRESH_TOK && !f.fortnox_nr) {
+    fortnoxCreateFaktura(fakturaId).catch(e => console.warn('Fortnox auto-create:', e));
+  }
+
   const bcc = FORTNOX_BCC ? `&bcc=${encodeURIComponent(FORTNOX_BCC)}` : '';
   const mailto = `mailto:${encodeURIComponent(mottagare)}?subject=${subject}${bcc}&body=${body}`;
   // Använd <a>-klick istället för location.href — öppnar Outlook mer reliabelt
@@ -4154,8 +4332,36 @@ lars@flexyfinder.com`);
     // Visa en klickbar banner — webbläsaren blockerar automatiska mailto i setTimeout
     const banner = document.createElement('div');
     banner.id = 'inhyrareBanner';
-    banner.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:9999;background:#1e293b;color:#fff;border-radius:10px;padding:14px 20px;box-shadow:0 4px 20px rgba(0,0,0,0.4);display:flex;align-items:center;gap:14px;font-family:\'DM Mono\',monospace;font-size:13px;max-width:480px';
-    banner.innerHTML = `<span>📧 Öppna mail till <strong>${mottagareInh}</strong></span><a href="${mailtoInh}" onclick="document.getElementById('inhyrareBanner')?.remove()" style="background:#f97316;color:#fff;padding:7px 16px;border-radius:6px;text-decoration:none;font-weight:700;white-space:nowrap">Skicka →</a><span onclick="document.getElementById('inhyrareBanner')?.remove()" style="cursor:pointer;color:#94a3b8;font-size:18px;line-height:1">×</span>`;
+    const _inhExkl = Math.round((parseInt(a.antal_personer)||1)*(parseFloat(a.timmar_totalt)||0)*(parseFloat(a.timpris)||0));
+    const _inhInkl = _inhExkl + Math.round(_inhExkl * 0.25);
+    banner.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:9999;background:#0f172a;color:#fff;border-top:3px solid #f97316;padding:16px 24px;box-shadow:0 -8px 32px rgba(0,0,0,0.6);font-family:\'Syne\',sans-serif;';
+    banner.innerHTML = `
+      <div style="max-width:860px;margin:0 auto;display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div style="font-size:11px;color:#94a3b8;font-family:'DM Mono',monospace;letter-spacing:1.5px;text-transform:uppercase">📋 Granska & skicka avtal till inhyraren</div>
+          <span onclick="document.getElementById('inhyrareBanner')?.remove()" style="cursor:pointer;color:#64748b;font-size:26px;line-height:1;padding:0 4px;font-weight:300">×</span>
+        </div>
+        <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:10px;align-items:stretch">
+          <div style="background:#1e293b;border-radius:8px;padding:10px 14px;border:1px solid #334155">
+            <div style="font-size:9px;color:#64748b;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">INHYRARE</div>
+            <div style="font-size:16px;font-weight:700;color:#f1f5f9">${a.inhyrare_foretag||a.foretag||'–'}</div>
+            <div style="font-size:11px;color:#94a3b8;margin-top:2px">${mottagareInh}</div>
+          </div>
+          <div style="background:#1e293b;border-radius:8px;padding:10px 14px;border:1px solid #334155">
+            <div style="font-size:9px;color:#64748b;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">PERIOD</div>
+            <div style="font-size:13px;font-weight:600;color:#e2e8f0">${period||'–'}</div>
+          </div>
+          <div style="background:#1e293b;border-radius:8px;padding:10px 14px;border:1px solid #f97316">
+            <div style="font-size:9px;color:#f97316;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">EXKL. MOMS</div>
+            <div style="font-size:22px;font-weight:800;color:#f97316">${_inhExkl>0?_inhExkl.toLocaleString('sv-SE')+' kr':'–'}</div>
+          </div>
+          <div style="background:#1e293b;border-radius:8px;padding:10px 14px;border:1px solid #475569">
+            <div style="font-size:9px;color:#94a3b8;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">INKL. MOMS</div>
+            <div style="font-size:22px;font-weight:800;color:#fff">${_inhInkl>0?_inhInkl.toLocaleString('sv-SE')+' kr':'–'}</div>
+          </div>
+        </div>
+        <a href="${mailtoInh}" onclick="document.getElementById('inhyrareBanner')?.remove()" style="background:#f97316;color:#fff;padding:14px 24px;border-radius:8px;text-decoration:none;font-weight:700;font-size:15px;text-align:center;display:block;letter-spacing:0.3px;transition:opacity 0.15s" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">📧 Skicka avtal till ${a.inhyrare_foretag||a.foretag||'inhyraren'} →</a>
+      </div>`;
     document.body.appendChild(banner);
     setTimeout(() => banner.remove?.(), 30000); // försvinner efter 30s
   }
