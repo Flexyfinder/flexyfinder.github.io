@@ -4115,33 +4115,35 @@ lars@flexyfinder.com`);
   mailLink1.click();
   document.body.removeChild(mailLink1);
 
-  // ── MAIL 2: Till inhyrare (avtal endast) ─────────────────────────────
-  if (mottagareInh && avLink) {
-    setTimeout(() => {
-      const subjectInh = encodeURIComponent(`Uppdragsavtal ${avtalNr||ffNr} – FlexyFinder AB`);
-      const bodyInh = encodeURIComponent(
+  // ── MAIL 2: Till inhyrare (avtal endast) — visa klickbar knapp ───────
+  if (mottagareInh && avToken) {
+    const avLinkInh = `${FLEXYFINDER_PAGES_URL}/avtal.html?${avtalNr?'nr='+encodeURIComponent(avtalNr)+'&':''}t=${avToken}`;
+    const subjectInh = encodeURIComponent(`Uppdragsavtal ${avtalNr||ffNr} – FlexyFinder AB`);
+    const bodyInh = encodeURIComponent(
 `Hej,
 
 Bifogat finner ni ert uppdragsavtal via FlexyFinder.${(a.inhyrare_foretag||a.foretag)||a.uthyrare_foretag?'\n\nUppdrag: '+[a.inhyrare_foretag||a.foretag,a.uthyrare_foretag].filter(Boolean).join(' → '):''}${period&&period!=='–'?'\nPeriod: '+period:''}${avtalNr?'\nAvtalsnummer: '+avtalNr:''}
 
 🔗 Öppna avtalet online (ladda ned som PDF via utskrift):
-Avtal: ${avLink}
+Avtal: ${avLinkInh}
 
 Med vänliga hälsningar,
 FlexyFinder AB
 lars@flexyfinder.com`);
-      const mailLink2 = document.createElement('a');
-      mailLink2.href = `mailto:${encodeURIComponent(mottagareInh)}?subject=${subjectInh}&body=${bodyInh}`;
-      document.body.appendChild(mailLink2);
-      mailLink2.click();
-      document.body.removeChild(mailLink2);
-    }, 600);
+    const mailtoInh = `mailto:${encodeURIComponent(mottagareInh)}?subject=${subjectInh}&body=${bodyInh}`;
+    // Visa en klickbar banner — webbläsaren blockerar automatiska mailto i setTimeout
+    const banner = document.createElement('div');
+    banner.id = 'inhyrareBanner';
+    banner.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:9999;background:#1e293b;color:#fff;border-radius:10px;padding:14px 20px;box-shadow:0 4px 20px rgba(0,0,0,0.4);display:flex;align-items:center;gap:14px;font-family:\'DM Mono\',monospace;font-size:13px;max-width:480px';
+    banner.innerHTML = `<span>📧 Öppna mail till <strong>${mottagareInh}</strong></span><a href="${mailtoInh}" onclick="document.getElementById('inhyrareBanner')?.remove()" style="background:#f97316;color:#fff;padding:7px 16px;border-radius:6px;text-decoration:none;font-weight:700;white-space:nowrap">Skicka →</a><span onclick="document.getElementById('inhyrareBanner')?.remove()" style="cursor:pointer;color:#94a3b8;font-size:18px;line-height:1">×</span>`;
+    document.body.appendChild(banner);
+    setTimeout(() => banner.remove?.(), 30000); // försvinner efter 30s
   }
 
   // Markera faktura som skickad
   const { error } = await getSB().from('fakturor').update({ faktura_skickad: fakDatum }).eq('id', fakturaId);
   if (!error) { f.faktura_skickad = fakDatum; renderFakturaList(); }
-  showToast('📧 Två Outlook-fönster öppnas — uthyrare (avtal+faktura) & inhyrare (avtal)');
+  showToast('📧 Uthyrarmailet öppnas — klicka bannern nedan för inhyraren');
 }
 
 function generateAvtal(id, mottagare) {
