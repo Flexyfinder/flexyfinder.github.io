@@ -3839,7 +3839,7 @@ td{padding:10px 12px;font-size:13px;color:#333}
       <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-bottom:1px solid #e8eaf0;background:#f8f9fb">
         <div style="font-weight:700;font-size:14px">${isKredit?'🔴 Förhandsgranskning — Kreditfaktura':'Förhandsgranskning — Faktura'}</div>
         <div style="display:flex;gap:8px">
-          <button onclick="openFakturaNewTab('${fakturaId}');setTimeout(()=>{closeFakturaPreview();mailFaktura('${fakturaId}');},300)" style="background:#f97316;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;font-weight:600">💾 Spara &amp; Skicka</button>
+          <button onclick="mailAvtalOchFaktura('${fakturaId}');closeFakturaPreview();" style="background:#f97316;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;font-weight:600">📧 Skicka avtal + faktura</button>
           ${isKredit?`<button onclick="closeFakturaPreview();createReplacementFaktura('${f.avtal_id}')" style="background:#16a34a;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;font-weight:600">📄 Ny ersättningsfaktura</button>`:''}
           <button onclick="closeFakturaPreview()" style="background:#f0f2f7;border:1px solid #dde1ec;border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer;font-weight:600">✕ Stäng</button>
         </div>
@@ -3919,6 +3919,59 @@ lars@flexyfinder.com`);
     const { error } = await getSB().from('fakturor').update({ faktura_skickad: today }).eq('id', fakturaId);
     if (!error) { f.faktura_skickad = today; renderFakturaList(); }
   }
+}
+
+async function mailAvtalOchFaktura(fakturaId) {
+  const f = fakturorList.find(x => x.id === fakturaId);
+  if (!f) return;
+  const a = avtalList2.find(x => x.id === f.avtal_id) || {};
+
+  const exkl = Math.round(parseFloat(f.belopp_uthyrare)||0);
+  const inkl = exkl + Math.round(exkl*0.25);
+  const ffNr = 'FF-' + (f.faktura_nr || '?');
+  const avtalNr = a.match_id || (a.avtal_nummer ? 'AV-'+a.avtal_nummer : '');
+  const fakDatum = new Date().toISOString().slice(0,10);
+  const dueDate = (() => { const d = new Date(fakDatum); d.setDate(d.getDate()+10); return d.toISOString().slice(0,10); })();
+  const mottagare = a.uthyrare_faktura_epost || a.uthyrare_epost || '';
+  const period = [f.period_start||a.period_start, f.period_end||a.period_end].filter(Boolean).join(' – ') || '–';
+
+  // Öppna avtal (uthyrare) + faktura som PDF i nya flikar
+  generateAvtal(f.avtal_id, 'uthyrare');
+  setTimeout(() => {
+    if (window._fakturaHtmlCache && window._fakturaHtmlCache[fakturaId]) {
+      openFakturaNewTab(fakturaId);
+    }
+  }, 300);
+
+  // Bygg kombinerat mail
+  const subject = encodeURIComponent(`Avtal & Faktura ${ffNr}${avtalNr?' ('+avtalNr+')':''} – FlexyFinder AB`);
+  const body = encodeURIComponent(
+`Hej,
+
+Bifogat finner ni uppdragsavtal och faktura för er medverkan via FlexyFinder.${period&&period!=='–'?'\n\nPeriod: '+period:''}${avtalNr?'\nAvtalsnummer: '+avtalNr:''}
+
+Fakturanummer: ${ffNr}
+Fakturadatum: ${fakDatum}
+Förfallodatum: ${dueDate}
+Belopp inkl. moms: ${inkl.toLocaleString('sv-SE')} kr
+
+Betalning sker till Bankgiro 5128-4099 med referens ${ffNr}.
+
+Med vänliga hälsningar,
+FlexyFinder AB
+lars@flexyfinder.com`);
+
+  const bcc = FORTNOX_BCC ? `&bcc=${encodeURIComponent(FORTNOX_BCC)}` : '';
+  const mailLink = document.createElement('a');
+  mailLink.href = `mailto:${encodeURIComponent(mottagare)}?subject=${subject}${bcc}&body=${body}`;
+  document.body.appendChild(mailLink);
+  mailLink.click();
+  document.body.removeChild(mailLink);
+
+  // Markera faktura som skickad
+  const { error } = await getSB().from('fakturor').update({ faktura_skickad: fakDatum }).eq('id', fakturaId);
+  if (!error) { f.faktura_skickad = fakDatum; renderFakturaList(); }
+  showToast('📧 Outlook öppnat — bifoga avtal + faktura (båda flikar) och skicka');
 }
 
 function generateAvtal(id, mottagare) {
