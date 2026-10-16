@@ -3555,7 +3555,15 @@ async function deleteAvtal(id) {
   if (!a) return;
   const label = a.match_id || (a.avtal_nummer ? `AV-${a.avtal_nummer}` : id);
   const namn = [a.inhyrare_foretag, a.uthyrare_foretag].filter(Boolean).join(' / ');
-  if (!confirm(`Är du säker på att du vill radera avtal ${label} (${namn})?\n\nDetta kan inte ångras.`)) return;
+  const linkedFak = fakturorList.filter(f => f.avtal_id === id);
+  const extraText = linkedFak.length > 0 ? `\n\nOBS: ${linkedFak.length} kopplad${linkedFak.length>1?'e':''} faktura${linkedFak.length>1?'r':''} raderas också.` : '';
+  if (!confirm(`Är du säker på att du vill radera avtal ${label} (${namn})?${extraText}\n\nDetta kan inte ångras.`)) return;
+  // Radera kopplade fakturor först
+  for (const f of linkedFak) {
+    await window._sb.from('fakturor').delete().eq('id', f.id);
+    const fi = fakturorList.findIndex(x => x.id === f.id);
+    if (fi > -1) fakturorList.splice(fi, 1);
+  }
   const { error } = await window._sb.from('avtal').delete().eq('id', id);
   if (error) { alert('Fel vid radering: ' + error.message); return; }
   const idx = avtalList2.findIndex(x => x.id === id);
@@ -3718,7 +3726,7 @@ function generateFaktura(fakturaId) {
   const kundOrgNr= a.uthyrare_org_nr ? 'Org.nr: ' + a.uthyrare_org_nr : '';
   const rollResurs = [a.yrkesroll, a.resurs].filter(Boolean).join(' – ');
   const avnrFaktura = a.match_id || (a.avtal_nummer ? 'FF-' + new Date().getFullYear() + '-' + String(a.avtal_nummer).padStart(4,'0') : '');
-  const beskrivn = avnrFaktura || rollResurs || '–';
+  const beskrivn = avnrFaktura || rollResurs || 'Personaluthyrning';
   const timspec  = (a.timmar_totalt && a.timpris)
     ? `<tr><td colspan="2" style="padding:4px 0;color:#555;font-size:12px">${a.antal_personer||1} pers × ${a.timmar_totalt} h à ${Math.round(parseFloat(a.timpris)*(1-(parseFloat(a.ff_avgift_procent)||8.5)/100))} kr/h</td></tr>` : '';
 
@@ -4237,7 +4245,9 @@ function easterDate(year) {
 // Returnerar Set med alla röda dagar (YYYY-MM-DD) för ett givet år
 function swedishRedDays(year) {
   const red = new Set();
-  const add = (y,m,d) => red.add(new Date(y,m-1,d).toISOString().split('T')[0]);
+  // Använd alltid lokal datumsträng (undviker UTC-tidszonsfel)
+  const localStr = (d) => d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  const add = (y,m,d) => red.add(y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0'));
   // Fasta röda dagar
   add(year,1,1);   // Nyårsdagen
   add(year,1,6);   // Trettondedag jul
@@ -4249,10 +4259,9 @@ function swedishRedDays(year) {
   add(year,12,31); // Nyårsafton
   // Påskrelaterade rörliga dagar
   const easter = easterDate(year);
-  const easterMs = easter.getTime();
   const addOffset = (offset) => {
-    const d = new Date(easterMs + offset*86400000);
-    red.add(d.toISOString().split('T')[0]);
+    const d = new Date(easter.getFullYear(), easter.getMonth(), easter.getDate() + offset);
+    red.add(localStr(d));
   };
   addOffset(-3);  // Skärtorsdagen (ej röd men vanlig)
   addOffset(-2);  // Långfredagen
@@ -4263,13 +4272,13 @@ function swedishRedDays(year) {
   // Midsommarafton & midsommardagen (fredag+lördag vecka 24-25)
   const mid = new Date(year, 5, 19); // 19 juni
   while (mid.getDay() !== 5) mid.setDate(mid.getDate()+1); // nästa fredag
-  red.add(mid.toISOString().split('T')[0]);
-  const midSat = new Date(mid); midSat.setDate(mid.getDate()+1);
-  red.add(midSat.toISOString().split('T')[0]);
+  red.add(localStr(mid));
+  const midSat = new Date(mid.getFullYear(), mid.getMonth(), mid.getDate()+1);
+  red.add(localStr(midSat));
   // Alla helgons dag (lördag 31 okt – 6 nov)
   const allh = new Date(year, 9, 31);
   while (allh.getDay() !== 6) allh.setDate(allh.getDate()+1);
-  red.add(allh.toISOString().split('T')[0]);
+  red.add(localStr(allh));
   return red;
 }
 
@@ -4278,7 +4287,8 @@ const redDayCache = {};
 function isRedDay(date) {
   const yr = date.getFullYear();
   if (!redDayCache[yr]) redDayCache[yr] = swedishRedDays(yr);
-  return redDayCache[yr].has(date.toISOString().split('T')[0]);
+  const localStr = date.getFullYear()+'-'+String(date.getMonth()+1).padStart(2,'0')+'-'+String(date.getDate()).padStart(2,'0');
+  return redDayCache[yr].has(localStr);
 }
 
 async function generateFakturor() {
