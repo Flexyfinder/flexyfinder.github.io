@@ -3006,13 +3006,6 @@ function renderAvtalCards() {
               <button class="btn btn-ghost btn-sm" onclick="generateAvtal('${a.id}','uthyrare')" style="font-size:10px" title="Förhandsgranska avtal för uthyraren">📄 Uthyrare</button>
             </div>
           </div>
-          <div>
-            <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:3px">Skicka avtal</div>
-            <div style="display:flex;gap:4px">
-              <button class="btn btn-ghost btn-sm" onclick="mailAvtal('${a.id}','kund')" style="font-size:10px;${a.skickat_kund?'color:var(--green);font-weight:700':''}" title="${a.skickat_kund?'Skickat '+a.skickat_kund:'Öppna Outlook med avtal till inhyraren'}">📧 Kund${a.skickat_kund?' ✓':''}</button>
-              <button class="btn btn-ghost btn-sm" onclick="mailAvtal('${a.id}','uthyrare')" style="font-size:10px;${a.skickat_uthyrare?'color:var(--green);font-weight:700':''}" title="${a.skickat_uthyrare?'Skickat '+a.skickat_uthyrare:'Öppna Outlook med avtal till uthyraren'}">📧 Uthyrare${a.skickat_uthyrare?' ✓':''}</button>
-            </div>
-          </div>
           <div style="display:flex;gap:4px;align-self:flex-end;padding-bottom:0">
             <button class="btn btn-ghost btn-sm" onclick="createAndPreviewFaktura('${a.id}','${inhForetag.replace(/'/g,'')}')" style="font-size:10px">+ Faktura</button>
             <button class="btn btn-ghost btn-sm" onclick="openAvtalModal('${a.id}')" style="font-size:10px">✏ Redigera</button>
@@ -3949,7 +3942,7 @@ async function mailAvtalOchFaktura(fakturaId) {
   const body = encodeURIComponent(
 `Hej,
 
-Bifogat finner ni uppdragsavtal och faktura för er medverkan via FlexyFinder.${period&&period!=='–'?'\n\nPeriod: '+period:''}${avtalNr?'\nAvtalsnummer: '+avtalNr:''}
+Bifogat finner ni uppdragsavtal och faktura för er matchning via FlexyFinder.${(a.inhyrare_foretag||a.foretag)||a.uthyrare_foretag?'\n\nUppdrag: '+[a.inhyrare_foretag||a.foretag,a.uthyrare_foretag].filter(Boolean).join(' → '):''}${period&&period!=='–'?'\nPeriod: '+period:''}${avtalNr?'\nAvtalsnummer: '+avtalNr:''}
 
 Fakturanummer: ${ffNr}
 Fakturadatum: ${fakDatum}
