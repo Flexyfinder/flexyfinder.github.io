@@ -1553,6 +1553,14 @@ let FF_ORG_NR       = localStorage.getItem('crm_ff_org_nr')       || '559488-914
 let FF_ADRESS       = localStorage.getItem('crm_ff_adress')       || 'Sköntorpsvägen 124, 120 55 Årsta';
 let FF_TELEFON      = localStorage.getItem('crm_ff_telefon')      || '';
 let FORTNOX_BCC     = localStorage.getItem('crm_fortnox_bcc')     || '';
+// ─── FORTNOX API CONFIG ──────────────────────────────────
+const FORTNOX_CLIENT_ID   = 'cxlDVPv01S4i';
+const FORTNOX_REDIRECT_URI= 'https://flexyfinder.github.io';
+let FORTNOX_SECRET      = localStorage.getItem('crm_fortnox_secret')  || '';
+let FORTNOX_ACCESS_TOK  = localStorage.getItem('crm_fortnox_access')  || '';
+let FORTNOX_REFRESH_TOK = localStorage.getItem('crm_fortnox_refresh') || '';
+let FORTNOX_TOK_EXP     = parseInt(localStorage.getItem('crm_fortnox_expiry')||'0');
+let FORTNOX_TEST_MODE   = localStorage.getItem('crm_fortnox_test') !== 'false';
 
 let contacts = [];
 let calls = [];
@@ -1702,6 +1710,8 @@ async function loadFromSupabase() {
     await autoAvslutaAvtal();
     renderAll();
     if (currentContactId) openDetail(currentContactId);
+    // Auto-synka Fortnox-status vid laddning
+    if (FORTNOX_REFRESH_TOK) setTimeout(() => fortnoxSyncStatus(), 2000);
   } catch(e) {
     setStatus('error', e.message);
   }
@@ -2521,6 +2531,11 @@ function showSetup() {
     if (a && FF_ADRESS) a.value = FF_ADRESS;
     if (t && FF_TELEFON) t.value = FF_TELEFON;
     if (b && FORTNOX_BCC) b.value = FORTNOX_BCC;
+    const fs = document.getElementById('setupFortnoxSecret');
+    if (fs) fs.placeholder = FORTNOX_SECRET ? '(sparad)' : '••••••••••';
+    const ft = document.getElementById('setupFortnoxTest');
+    if (ft) ft.checked = FORTNOX_TEST_MODE;
+    updateFortnoxStatus();
   }, 50);
   const el = document.getElementById('setupOverlay');
   if (el) el.style.display = 'flex';
@@ -2558,6 +2573,10 @@ async function connectSupabase() {
     if (adressVal) { FF_ADRESS = adressVal; localStorage.setItem('crm_ff_adress', adressVal); }
     if (telVal) { FF_TELEFON = telVal; localStorage.setItem('crm_ff_telefon', telVal); }
     if (bccVal) { FORTNOX_BCC = bccVal; localStorage.setItem('crm_fortnox_bcc', bccVal); }
+    const secretVal = document.getElementById('setupFortnoxSecret')?.value.trim();
+    if (secretVal && secretVal !== '(sparad)') { FORTNOX_SECRET = secretVal; localStorage.setItem('crm_fortnox_secret', secretVal); }
+    const testVal = document.getElementById('setupFortnoxTest')?.checked;
+    FORTNOX_TEST_MODE = testVal ?? true; localStorage.setItem('crm_fortnox_test', FORTNOX_TEST_MODE);
     contacts    = c  || [];
     calls       = cl || [];
     fbPosts     = fb || [];
@@ -3347,6 +3366,7 @@ function renderFakturaList() {
               <div style="display:flex;gap:4px;align-items:center;flex-wrap:nowrap">
                 <button onclick="event.stopPropagation();generateFaktura('${f.id}')" style="font-size:11px;padding:4px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;cursor:pointer;white-space:nowrap" title="Granska faktura">📄 Granska</button>
                 <button onclick="event.stopPropagation();mailFaktura('${f.id}')" style="font-size:11px;padding:4px 8px;background:${f.faktura_skickad?'#22c55e':'#2563eb'};color:#fff;border:none;border-radius:6px;cursor:pointer;white-space:nowrap">📧 ${f.faktura_skickad?'✓':'Skicka'}</button>
+                ${FORTNOX_REFRESH_TOK?`<button onclick="event.stopPropagation();fortnoxCreateFaktura('${f.id}')" style="font-size:11px;padding:4px 8px;background:${f.fortnox_nr?'#f0fdf4':'#eff6ff'};color:${f.fortnox_nr?'#16a34a':'#1d4ed8'};border:1px solid ${f.fortnox_nr?'#86efac':'#bfdbfe'};border-radius:6px;cursor:pointer;white-space:nowrap" title="${f.fortnox_nr?'Fortnox nr '+f.fortnox_nr+' — klicka för att uppdatera':'Skapa i Fortnox'}">📊 ${f.fortnox_nr?'FX '+f.fortnox_nr:'→ FX'}</button>`:''}
                 <button onclick="event.stopPropagation();doDeleteFaktura('${f.id}')" style="font-size:11px;padding:4px 8px;background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;border-radius:6px;cursor:pointer;white-space:nowrap" title="Radera faktura">🗑 Radera</button>
                 ${(parseFloat(f.belopp_uthyrare)||0)>0?`<button onclick="event.stopPropagation();createKreditfaktura('${f.id}')" style="font-size:11px;padding:4px 8px;background:#fdf4ff;color:#7c3aed;border:1px solid #c4b5fd;border-radius:6px;cursor:pointer;white-space:nowrap" title="Kreditera faktura">↩ Kredit</button>`:''}
                 <button onclick="event.stopPropagation();sparaBada('${f.avtal_id}','${f.id}')" style="font-size:11px;padding:4px 8px;background:#f0fdf4;color:#16a34a;border:1px solid #86efac;border-radius:6px;cursor:pointer;white-space:nowrap" title="Öppna avtal + faktura i nya flikar">📁 Båda</button>
@@ -4909,8 +4929,151 @@ function updateUserBadge() {
   } else { el.innerHTML = ''; }
 }
 
+// ─── FORTNOX API ────────────────────────────────────────
+async function fortnoxGetToken() {
+  if (FORTNOX_ACCESS_TOK && Date.now() < FORTNOX_TOK_EXP - 60000) return FORTNOX_ACCESS_TOK;
+  if (!FORTNOX_SECRET) { showToast('⚠️ Ange Fortnox Client Secret i inställningar'); return null; }
+  if (!FORTNOX_REFRESH_TOK) { showToast('⚠️ Fortnox ej ansluten — öppna inställningar → Anslut Fortnox'); return null; }
+  try {
+    const resp = await fetch('https://apps.fortnox.se/oauth-v1/token', {
+      method: 'POST',
+      headers: { 'Authorization': 'Basic ' + btoa(FORTNOX_CLIENT_ID + ':' + FORTNOX_SECRET), 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'grant_type=refresh_token&refresh_token=' + encodeURIComponent(FORTNOX_REFRESH_TOK)
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    const data = await resp.json();
+    FORTNOX_ACCESS_TOK  = data.access_token;
+    FORTNOX_REFRESH_TOK = data.refresh_token || FORTNOX_REFRESH_TOK;
+    FORTNOX_TOK_EXP     = Date.now() + (data.expires_in || 3600) * 1000;
+    localStorage.setItem('crm_fortnox_access', FORTNOX_ACCESS_TOK);
+    localStorage.setItem('crm_fortnox_refresh', FORTNOX_REFRESH_TOK);
+    localStorage.setItem('crm_fortnox_expiry', String(FORTNOX_TOK_EXP));
+    return FORTNOX_ACCESS_TOK;
+  } catch(e) {
+    FORTNOX_REFRESH_TOK = ''; localStorage.removeItem('crm_fortnox_refresh');
+    showToast('⚠️ Fortnox session gick ut — anslut igen i inställningar'); return null;
+  }
+}
+
+async function fortnoxExchangeCode(code) {
+  if (!FORTNOX_SECRET) { showToast('⚠️ Ange Fortnox Client Secret i inställningar och anslut igen'); return; }
+  try {
+    const resp = await fetch('https://apps.fortnox.se/oauth-v1/token', {
+      method: 'POST',
+      headers: { 'Authorization': 'Basic ' + btoa(FORTNOX_CLIENT_ID + ':' + FORTNOX_SECRET), 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'grant_type=authorization_code&code=' + encodeURIComponent(code) + '&redirect_uri=' + encodeURIComponent(FORTNOX_REDIRECT_URI)
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    const data = await resp.json();
+    FORTNOX_ACCESS_TOK  = data.access_token;
+    FORTNOX_REFRESH_TOK = data.refresh_token || '';
+    FORTNOX_TOK_EXP     = Date.now() + (data.expires_in || 3600) * 1000;
+    localStorage.setItem('crm_fortnox_access', FORTNOX_ACCESS_TOK);
+    localStorage.setItem('crm_fortnox_refresh', FORTNOX_REFRESH_TOK);
+    localStorage.setItem('crm_fortnox_expiry', String(FORTNOX_TOK_EXP));
+    showToast('✅ Fortnox ansluten!');
+    const url = new URL(window.location.href);
+    url.searchParams.delete('code'); url.searchParams.delete('state');
+    window.history.replaceState({}, '', url.toString());
+    updateFortnoxStatus(); renderFakturaList();
+  } catch(e) { showToast('❌ Fortnox-anslutning misslyckades: ' + e.message); }
+}
+
+function fortnoxConnect() {
+  if (!FORTNOX_SECRET) { showToast('⚠️ Ange Fortnox Client Secret i inställningar först'); return; }
+  const state = Math.random().toString(36).slice(2);
+  localStorage.setItem('crm_fortnox_state', state);
+  window.location.href = 'https://apps.fortnox.se/oauth-v1/auth?client_id=' + FORTNOX_CLIENT_ID +
+    '&redirect_uri=' + encodeURIComponent(FORTNOX_REDIRECT_URI) +
+    '&scope=' + encodeURIComponent('companyinformation invoice customer') +
+    '&state=' + state + '&response_type=code&access_type=offline';
+}
+
+function saveFortnoxAndConnect() {
+  const secret = document.getElementById('setupFortnoxSecret')?.value.trim();
+  if (secret && secret !== '(sparad)') { FORTNOX_SECRET = secret; localStorage.setItem('crm_fortnox_secret', secret); }
+  const test = document.getElementById('setupFortnoxTest')?.checked ?? true;
+  FORTNOX_TEST_MODE = test; localStorage.setItem('crm_fortnox_test', String(test));
+  if (!FORTNOX_SECRET) { showToast('⚠️ Ange Client Secret först'); return; }
+  fortnoxConnect();
+}
+
+async function fortnoxCreateFaktura(fakturaId) {
+  const f = fakturorList.find(x => x.id === fakturaId);
+  if (!f) return;
+  const token = await fortnoxGetToken();
+  if (!token) return;
+  const belopp = parseFloat(f.belopp_uthyrare) || 0;
+  const dueDate = (() => { const d = new Date(f.faktura_skickad || new Date()); d.setDate(d.getDate()+30); return d.toISOString().slice(0,10); })();
+  const payload = { Invoice: {
+    CustomerName: f.foretag || 'Kund',
+    InvoiceDate: f.faktura_skickad || new Date().toISOString().slice(0,10),
+    DueDate: dueDate,
+    YourReference: 'FF-' + (f.faktura_nr||'?'),
+    Comments: (f.period_start && f.period_end) ? 'Period: ' + f.period_start + ' – ' + f.period_end : '',
+    Currency: 'SEK',
+    InvoiceRows: [{ Description: 'Förmedlingsavgift FlexyFinder – Period ' + (f.period_start||'') + ' – ' + (f.period_end||''), Price: belopp, DeliveredQuantity: '1', VAT: 25, AccountNumber: 3000 }]
+  }};
+  try {
+    const resp = await fetch('https://api.fortnox.se/3/invoices', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!resp.ok) { const err = await resp.json().catch(()=>({})); throw new Error(err?.ErrorInformation?.message || resp.statusText); }
+    const data = await resp.json();
+    const fnr = data?.Invoice?.DocumentNumber;
+    if (fnr) {
+      await getSB().from('fakturor').update({ fortnox_nr: String(fnr) }).eq('id', fakturaId);
+      f.fortnox_nr = String(fnr);
+      renderFakturaList();
+      showToast('✅ Faktura skapad i Fortnox! Nr: ' + fnr);
+    }
+  } catch(e) { showToast('❌ Fortnox-fel: ' + e.message); }
+}
+
+async function fortnoxSyncStatus() {
+  const token = await fortnoxGetToken();
+  if (!token) return;
+  const toSync = fakturorList.filter(f => f.fortnox_nr && !f.faktura_betald);
+  if (!toSync.length) { showToast('ℹ️ Inga fakturor att synka'); return; }
+  let updated = 0;
+  for (const f of toSync) {
+    try {
+      const resp = await fetch('https://api.fortnox.se/3/invoices/' + f.fortnox_nr, {
+        headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/json' }
+      });
+      if (!resp.ok) continue;
+      const data = await resp.json();
+      const inv = data?.Invoice;
+      if (!inv) continue;
+      if (parseFloat(inv.Balance) === 0 && inv.FinalPayDate) {
+        const paidDate = inv.FinalPayDate.slice(0,10);
+        await getSB().from('fakturor').update({ faktura_betald: paidDate }).eq('id', f.id);
+        f.faktura_betald = paidDate; updated++;
+      }
+    } catch(e) { /* continue */ }
+  }
+  if (updated > 0) { renderFakturaList(); showToast('✅ Fortnox: ' + updated + ' faktura' + (updated>1?'r':'') + ' markerade som betalda'); }
+  else showToast('✓ Fortnox synkad — inga nya betalningar');
+}
+
+function updateFortnoxStatus() {
+  const dot = document.getElementById('fortnoxStatusDot');
+  if (dot) { dot.style.background = FORTNOX_REFRESH_TOK ? '#22c55e' : '#e5e7eb'; dot.title = FORTNOX_REFRESH_TOK ? 'Fortnox ansluten' : 'Ej ansluten'; }
+  const lbl = document.getElementById('fortnoxModeLabel');
+  if (lbl) lbl.textContent = FORTNOX_TEST_MODE ? '🧪 Testläge' : '🏢 Produktion';
+  const btn = document.getElementById('fortnoxConnectBtn');
+  if (btn) btn.textContent = FORTNOX_REFRESH_TOK ? '🔄 Återanslut Fortnox' : '🔌 Anslut Fortnox';
+}
+
 // ─── INIT ───────────────────────────────────────────────
 async function init() {
+  // Handle Fortnox OAuth callback
+  const _urlP = new URLSearchParams(window.location.search);
+  const _fnCode = _urlP.get('code');
+  if (_fnCode) { setTimeout(() => fortnoxExchangeCode(_fnCode), 800); }
+
   const sb = getSB();
   const { data: { session } } = await sb.auth.getSession();
   if (session) {
@@ -4992,6 +5155,23 @@ document.addEventListener('DOMContentLoaded', init);
       <div class="form-group">
         <label class="form-label">Fortnox BCC-adress (för fakturaimport, valfritt)</label>
         <input class="form-input" id="setupFortnoxBcc" type="email" placeholder="import-XXXXX@fortnox.se">
+      </div>
+      <div style="border-top:1px solid var(--border);margin-top:16px;padding-top:16px">
+        <div style="font-size:12px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px">
+          Fortnox API
+          <span id="fortnoxStatusDot" style="width:8px;height:8px;border-radius:50%;background:#e5e7eb;display:inline-block"></span>
+          <span id="fortnoxModeLabel" style="font-size:10px;font-family:'DM Mono',monospace;color:var(--muted)"></span>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Client Secret</label>
+          <input class="form-input" id="setupFortnoxSecret" type="password" placeholder="••••••••••">
+        </div>
+        <div class="form-group" style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+          <input type="checkbox" id="setupFortnoxTest" checked style="width:16px;height:16px;cursor:pointer">
+          <label for="setupFortnoxTest" style="font-size:12px;cursor:pointer">Testläge (sandbox — påverkar inte riktigt Fortnox)</label>
+        </div>
+        <button id="fortnoxConnectBtn" onclick="saveFortnoxAndConnect()" style="font-size:12px;padding:8px 14px;background:#1a1d2e;color:#fff;border:none;border-radius:8px;cursor:pointer;width:100%;margin-bottom:6px">🔌 Anslut Fortnox</button>
+        <button onclick="fortnoxSyncStatus()" style="font-size:12px;padding:8px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;cursor:pointer;width:100%">🔄 Synka betaldstatus nu</button>
       </div>
     </div>
     <button class="btn btn-primary" id="connectBtn" onclick="connectSupabase()" style="width:100%;padding:12px;font-size:14px;margin-top:8px">Anslut till Supabase</button>
