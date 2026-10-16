@@ -2860,6 +2860,19 @@ async function sbDeleteFakturaDb(id) {
 }
 
 // ─── AFFÄRER: SUB-TAB ───────────────────────────────────
+function goToAvtal(avtalId) {
+  showPage('affarer', document.querySelector('[onclick*=affarer]'));
+  showAffSub('avtal', document.getElementById('affBtn-avtal'));
+  setTimeout(() => {
+    const el = document.getElementById('avtalCard-' + avtalId);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.style.outline = '2px solid var(--accent)';
+      setTimeout(() => el.style.outline = '', 2000);
+    }
+  }, 100);
+}
+
 function showAffSub(sub, btn) {
   affSub = sub;
   ['kontroll','avtal','faktura'].forEach(s => {
@@ -2988,7 +3001,7 @@ function renderAvtalCards() {
     const isArchived = a.status === 'Avslutat';
     const cardBorder = isArchived ? 'var(--border)' : isOverdue ? 'rgba(239,68,68,0.5)' : isExpiringSoon ? 'rgba(239,68,68,0.35)' : 'var(--border)';
     const cardOpacity = isArchived ? 'opacity:0.55;' : '';
-    return `<div style="background:var(--surface);border:1px solid ${cardBorder};border-radius:10px;padding:18px;margin-bottom:14px;${cardOpacity}">
+    return `<div id="avtalCard-${a.id}" style="background:var(--surface);border:1px solid ${cardBorder};border-radius:10px;padding:18px;margin-bottom:14px;${cardOpacity}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
         <div>
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
@@ -3298,9 +3311,12 @@ function checkFaktureringsVarningar() {
         const label = diff === 0 ? '<span style="color:#ef4444;font-weight:700">IDAG</span>' : `<span style="color:#f97316">om ${diff} dag${diff>1?'ar':''}</span>`;
         const uth = a.uthyrare_foretag || '–';
         const inh = a.inhyrare_foretag || a.foretag || '–';
-        return `<div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid rgba(239,68,68,0.15)">
+        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-top:1px solid rgba(239,68,68,0.15)">
           <span>${inh} → ${uth}${a.match_id?' <span style="color:var(--muted)">(Match '+a.match_id+')</span>':''}</span>
-          <span>Slutdatum: <strong>${a.period_end}</strong> · ${label}</span>
+          <span style="display:flex;align-items:center;gap:10px">
+            <span>Slutdatum: <strong>${a.period_end}</strong> · ${label}</span>
+            <button onclick="goToAvtal('${a.id}')" style="font-size:10px;padding:3px 10px;background:var(--accent);color:#fff;border:none;border-radius:5px;cursor:pointer;font-weight:700;white-space:nowrap">→ Öppna avtal</button>
+          </span>
         </div>`;
       }).join('')}
     </div>`;
