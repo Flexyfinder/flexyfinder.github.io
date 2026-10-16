@@ -1314,7 +1314,7 @@
     <!-- PRIS -->
     <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--accent);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px;padding-top:14px;border-top:1px solid var(--border)">Pris</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
-      <div class="form-group"><label class="form-label">Timpris exkl. moms (kr/h)</label><input class="form-input" id="aTimpris" type="number" placeholder="600" oninput="calcAvtalPris()"></div>
+      <div class="form-group"><label class="form-label">Timpris exkl. moms (kr/h) <span style="color:#ef4444">*</span></label><input class="form-input" id="aTimpris" type="number" placeholder="" oninput="calcAvtalPris()"></div>
       <div class="form-group"><label class="form-label">FlexyFinder-avgift (%)</label><input class="form-input" id="aFfProcent" type="number" value="8.5" step="0.1" oninput="calcAvtalPris()"></div>
     </div>
     <div id="avtalPrisCalc" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px;font-family:'DM Mono',monospace;font-size:12px;line-height:2.1;margin-bottom:4px">
@@ -3592,6 +3592,21 @@ async function saveAvtal() {
   const inhForetag = document.getElementById('aInhForetag').value.trim();
   const uthForetag = document.getElementById('aUthForetag').value.trim();
   if (!inhForetag && !uthForetag) { showToast('Ange minst inhyrare eller uthyrare'); return; }
+
+  // Validera obligatoriska fält
+  const _missing = [];
+  if (!document.getElementById('aPeriodStart').value) _missing.push('Period från');
+  if (!document.getElementById('aPeriodEnd').value) _missing.push('Period till');
+  if (!parseFloat(document.getElementById('aTimmarTot').value)) _missing.push('Timmar totalt');
+  if (!parseFloat(document.getElementById('aTimpris').value)) _missing.push('Timpris');
+  const _uthEpost = document.getElementById('aUthEpost').value.trim() || document.getElementById('aUthFaktEpost').value.trim();
+  if (!_uthEpost) _missing.push('Uthyrare e-post');
+  if (!document.getElementById('aInhEpost').value.trim()) _missing.push('Inhyrare e-post');
+  if (_missing.length > 0) {
+    showToast('⚠️ Fyll i obligatoriska fält: ' + _missing.join(', '));
+    return;
+  }
+
   const row = {
     id,
     foretag: inhForetag || uthForetag,
@@ -3961,7 +3976,8 @@ async function mailAvtalOchFaktura(fakturaId) {
   const avtalNr = a.match_id || (a.avtal_nummer ? 'AV-'+a.avtal_nummer : '');
   const fakDatum = new Date().toISOString().slice(0,10);
   const dueDate = (() => { const d = new Date(fakDatum); d.setDate(d.getDate()+10); return d.toISOString().slice(0,10); })();
-  const mottagare = a.uthyrare_faktura_epost || a.uthyrare_epost || '';
+  const mottagareUth = a.uthyrare_faktura_epost || a.uthyrare_epost || '';
+  const mottagareInh = a.inhyrare_epost || '';
   const period = [f.period_start||a.period_start, f.period_end||a.period_end].filter(Boolean).join(' – ') || '–';
 
   // Generera skyddade delningslänkar
@@ -3980,9 +3996,9 @@ async function mailAvtalOchFaktura(fakturaId) {
     }
   }, 300);
 
-  // Bygg kombinerat mail
-  const subject = encodeURIComponent(`Avtal & Faktura ${ffNr}${avtalNr?' ('+avtalNr+')':''} – FlexyFinder AB`);
-  const body = encodeURIComponent(
+  // ── MAIL 1: Till uthyrare (avtal + faktura) ──────────────────────────
+  const subjectUth = encodeURIComponent(`Avtal & Faktura ${ffNr}${avtalNr?' ('+avtalNr+')':''} – FlexyFinder AB`);
+  const bodyUth = encodeURIComponent(
 `Hej,
 
 Bifogat finner ni uppdragsavtal och faktura för er matchning via FlexyFinder.${(a.inhyrare_foretag||a.foretag)||a.uthyrare_foretag?'\n\nUppdrag: '+[a.inhyrare_foretag||a.foretag,a.uthyrare_foretag].filter(Boolean).join(' → '):''}${period&&period!=='–'?'\nPeriod: '+period:''}${avtalNr?'\nAvtalsnummer: '+avtalNr:''}
@@ -3999,16 +4015,39 @@ FlexyFinder AB
 lars@flexyfinder.com`);
 
   const bcc = FORTNOX_BCC ? `&bcc=${encodeURIComponent(FORTNOX_BCC)}` : '';
-  const mailLink = document.createElement('a');
-  mailLink.href = `mailto:${encodeURIComponent(mottagare)}?subject=${subject}${bcc}&body=${body}`;
-  document.body.appendChild(mailLink);
-  mailLink.click();
-  document.body.removeChild(mailLink);
+  const mailLink1 = document.createElement('a');
+  mailLink1.href = `mailto:${encodeURIComponent(mottagareUth)}?subject=${subjectUth}${bcc}&body=${bodyUth}`;
+  document.body.appendChild(mailLink1);
+  mailLink1.click();
+  document.body.removeChild(mailLink1);
+
+  // ── MAIL 2: Till inhyrare (avtal endast) ─────────────────────────────
+  if (mottagareInh && avLink) {
+    setTimeout(() => {
+      const subjectInh = encodeURIComponent(`Uppdragsavtal ${avtalNr||ffNr} – FlexyFinder AB`);
+      const bodyInh = encodeURIComponent(
+`Hej,
+
+Bifogat finner ni ert uppdragsavtal via FlexyFinder.${(a.inhyrare_foretag||a.foretag)||a.uthyrare_foretag?'\n\nUppdrag: '+[a.inhyrare_foretag||a.foretag,a.uthyrare_foretag].filter(Boolean).join(' → '):''}${period&&period!=='–'?'\nPeriod: '+period:''}${avtalNr?'\nAvtalsnummer: '+avtalNr:''}
+
+🔗 Öppna avtalet online (ladda ned som PDF via utskrift):
+Avtal: ${avLink}
+
+Med vänliga hälsningar,
+FlexyFinder AB
+lars@flexyfinder.com`);
+      const mailLink2 = document.createElement('a');
+      mailLink2.href = `mailto:${encodeURIComponent(mottagareInh)}?subject=${subjectInh}&body=${bodyInh}`;
+      document.body.appendChild(mailLink2);
+      mailLink2.click();
+      document.body.removeChild(mailLink2);
+    }, 600);
+  }
 
   // Markera faktura som skickad
   const { error } = await getSB().from('fakturor').update({ faktura_skickad: fakDatum }).eq('id', fakturaId);
   if (!error) { f.faktura_skickad = fakDatum; renderFakturaList(); }
-  showToast('📧 Outlook öppnat — bifoga avtal + faktura (båda flikar) och skicka');
+  showToast('📧 Två Outlook-fönster öppnas — uthyrare (avtal+faktura) & inhyrare (avtal)');
 }
 
 function generateAvtal(id, mottagare) {
@@ -4329,8 +4368,17 @@ function isRedDay(date) {
 async function generateFakturor() {
   const id = document.getElementById('aEditId').value;
   const a = avtalList2.find(x=>x.id===id);
-  if (!a || !a.period_start || !a.period_end || !a.timpris) {
-    showToast('Ange period och timpris för att generera fakturor');
+  const _fakMissing = [];
+  if (!a) { showToast('Avtal ej hittat'); return; }
+  if (!a.period_start) _fakMissing.push('Period från');
+  if (!a.period_end) _fakMissing.push('Period till');
+  if (!a.timpris) _fakMissing.push('Timpris');
+  if (!a.timmar_totalt) _fakMissing.push('Timmar totalt');
+  const _fakUthEpost = a.uthyrare_faktura_epost || a.uthyrare_epost;
+  if (!_fakUthEpost) _fakMissing.push('Uthyrare e-post');
+  if (!a.inhyrare_epost) _fakMissing.push('Inhyrare e-post');
+  if (_fakMissing.length > 0) {
+    showToast('⚠️ Spara avtalet med dessa fält ifyllda först: ' + _fakMissing.join(', '));
     return;
   }
   // Varna om det redan finns fakturor
