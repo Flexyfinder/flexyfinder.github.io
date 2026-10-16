@@ -5157,13 +5157,13 @@ function updateUserBadge() {
 // ─── FORTNOX API ────────────────────────────────────────
 async function fortnoxGetToken() {
   if (FORTNOX_ACCESS_TOK && Date.now() < FORTNOX_TOK_EXP - 60000) return FORTNOX_ACCESS_TOK;
-  if (!FORTNOX_SECRET) { showToast('⚠️ Ange Fortnox Client Secret i inställningar'); return null; }
   if (!FORTNOX_REFRESH_TOK) { showToast('⚠️ Fortnox ej ansluten — öppna inställningar → Anslut Fortnox'); return null; }
+  const fnUrl = SUPABASE_URL + '/functions/v1/fortnox-token';
   try {
-    const resp = await fetch('https://apps.fortnox.se/oauth-v1/token', {
+    const resp = await fetch(fnUrl, {
       method: 'POST',
-      headers: { 'Authorization': 'Basic ' + btoa(FORTNOX_CLIENT_ID + ':' + FORTNOX_SECRET), 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: 'grant_type=refresh_token&refresh_token=' + encodeURIComponent(FORTNOX_REFRESH_TOK)
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_KEY },
+      body: JSON.stringify({ action: 'refresh', refresh_token: FORTNOX_REFRESH_TOK })
     });
     if (!resp.ok) throw new Error(await resp.text());
     const data = await resp.json();
@@ -5181,12 +5181,12 @@ async function fortnoxGetToken() {
 }
 
 async function fortnoxExchangeCode(code) {
-  if (!FORTNOX_SECRET) { showToast('⚠️ Ange Fortnox Client Secret i inställningar och anslut igen'); return; }
+  const fnUrl = SUPABASE_URL + '/functions/v1/fortnox-token';
   try {
-    const resp = await fetch('https://apps.fortnox.se/oauth-v1/token', {
+    const resp = await fetch(fnUrl, {
       method: 'POST',
-      headers: { 'Authorization': 'Basic ' + btoa(FORTNOX_CLIENT_ID + ':' + FORTNOX_SECRET), 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: 'grant_type=authorization_code&code=' + encodeURIComponent(code) + '&redirect_uri=' + encodeURIComponent(FORTNOX_REDIRECT_URI)
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_KEY },
+      body: JSON.stringify({ action: 'exchange', code })
     });
     if (!resp.ok) throw new Error(await resp.text());
     const data = await resp.json();
