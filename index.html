@@ -3923,6 +3923,17 @@ lars@flexyfinder.com`);
   }
 }
 
+const FLEXYFINDER_PAGES_URL = 'https://flexyfinder.github.io';
+async function ensureShareToken(table, id) {
+  const localList = table === 'fakturor' ? fakturorList : avtalList2;
+  const local = localList.find(x => x.id === id);
+  if (local && local.share_token) return local.share_token;
+  const token = genId();
+  const { error } = await getSB().from(table).update({ share_token: token }).eq('id', id);
+  if (error) { console.warn('share_token fel:', error); return null; }
+  if (local) local.share_token = token;
+  return token;
+}
 async function mailAvtalOchFaktura(fakturaId) {
   const f = fakturorList.find(x => x.id === fakturaId);
   if (!f) return;
@@ -3936,6 +3947,14 @@ async function mailAvtalOchFaktura(fakturaId) {
   const dueDate = (() => { const d = new Date(fakDatum); d.setDate(d.getDate()+10); return d.toISOString().slice(0,10); })();
   const mottagare = a.uthyrare_faktura_epost || a.uthyrare_epost || '';
   const period = [f.period_start||a.period_start, f.period_end||a.period_end].filter(Boolean).join(' – ') || '–';
+
+  // Generera skyddade delningslänkar
+  const [fakToken, avToken] = await Promise.all([
+    ensureShareToken('fakturor', fakturaId),
+    f.avtal_id ? ensureShareToken('avtal', f.avtal_id) : Promise.resolve(null)
+  ]);
+  const fakLink = fakToken ? `${FLEXYFINDER_PAGES_URL}/faktura.html?nr=${encodeURIComponent(ffNr)}&t=${fakToken}` : null;
+  const avLink  = avToken && avtalNr ? `${FLEXYFINDER_PAGES_URL}/avtal.html?nr=${encodeURIComponent(avtalNr)}&t=${avToken}` : null;
 
   // Öppna avtal (uthyrare) + faktura som PDF i nya flikar
   generateAvtal(f.avtal_id, 'uthyrare');
@@ -3957,7 +3976,7 @@ Fakturadatum: ${fakDatum}
 Förfallodatum: ${dueDate}
 Belopp inkl. moms: ${inkl.toLocaleString('sv-SE')} kr
 
-Betalning sker till Bankgiro 5128-4099 med referens ${ffNr}.
+Betalning sker till Bankgiro 5128-4099 med referens ${ffNr}.${fakLink||avLink?'\n\n🔗 Öppna dokument online (ladda ned som PDF via utskrift):':''}${fakLink?'\nFaktura: '+fakLink:''}${avLink?'\nAvtal: '+avLink:''}
 
 Med vänliga hälsningar,
 FlexyFinder AB
