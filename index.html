@@ -1873,7 +1873,7 @@ function renderDashboard() {
           <td style="padding:7px 8px;font-weight:600;font-size:13px">${f.foretag||'–'}</td>
           <td style="padding:7px 8px;font-family:'DM Mono',monospace;font-size:12px;color:var(--muted2)">${f.period_start||'–'} → ${f.period_end||'–'}</td>
           <td style="padding:7px 8px;text-align:right;font-weight:700;color:var(--orange)">${f.belopp_uthyrare?parseFloat(f.belopp_uthyrare).toLocaleString('sv-SE')+' kr':'–'}</td>
-          <td style="padding:7px 8px"><span style="background:var(--orange);color:white;font-size:10px;padding:2px 8px;border-radius:20px;font-family:'DM Mono',monospace">Skicka</span></td>
+          <td style="padding:7px 8px"><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();mailAvtalOchFaktura('${f.id}')" style="font-size:10px;color:var(--orange);border-color:var(--orange)">📧 Fakturera</button></td>
         </tr>`).join('')}</tbody></table>`;
     }
   }
@@ -3724,7 +3724,8 @@ function generateFaktura(fakturaId) {
   const kundAdr  = [a.uthyrare_fakturaadress, [a.uthyrare_postnr, a.uthyrare_ort].filter(Boolean).join(' ')].filter(Boolean).join(', ') || '–';
   const kundOrgNr= a.uthyrare_org_nr ? 'Org.nr: ' + a.uthyrare_org_nr : '';
   const rollResurs = [a.yrkesroll, a.resurs].filter(Boolean).join(' – ');
-  const beskrivn = rollResurs || 'Personaluthyrning via FlexyFinder';
+  const avnrFaktura = a.match_id || (a.avtal_nummer ? 'FF-' + new Date().getFullYear() + '-' + String(a.avtal_nummer).padStart(4,'0') : '');
+  const beskrivn = avnrFaktura || rollResurs || '–';
   const timspec  = (a.timmar_totalt && a.timpris)
     ? `<tr><td colspan="2" style="padding:4px 0;color:#555;font-size:12px">${a.antal_personer||1} pers × ${a.timmar_totalt} h à ${Math.round(parseFloat(a.timpris)*(1-(parseFloat(a.ff_avgift_procent)||8.5)/100))} kr/h</td></tr>` : '';
 
@@ -3791,8 +3792,8 @@ td{padding:10px 12px;font-size:13px;color:#333}
       <tr>
         <td>
           ${beskrivn}
-          ${a.inhyrare_foretag||a.foretag ? `<br><span style="font-size:11px;color:#888">Uppdrag för: ${a.inhyrare_foretag||a.foretag}</span>` : ''}
-          ${(a.match_id||a.avtal_nummer) ? `<br><span style="font-size:11px;color:#888">Avtal: ${a.match_id||'AV-'+a.avtal_nummer}</span>` : ''}
+          ${rollResurs && avnrFaktura ? `<br><span style="font-size:11px;color:#888">${rollResurs}</span>` : ''}
+          ${(a.inhyrare_foretag||a.foretag)||(a.uthyrare_foretag) ? `<br><span style="font-size:11px;color:#888">${[a.inhyrare_foretag||a.foretag, a.uthyrare_foretag].filter(Boolean).join(' → ')}</span>` : ''}
           ${timspec?'<br><span style="font-size:11px;color:#888">'+a.antal_personer+(a.antal_personer>1?' pers':'')+(a.timmar_totalt?' × '+a.timmar_totalt+' h':'')+'</span>':''}
         </td>
         <td style="color:#555">${period}</td>
