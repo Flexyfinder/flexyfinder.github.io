@@ -3740,19 +3740,40 @@ function renderFakturaList() {
         d.setDate(d.getDate() + 7);
       }
     });
-    kommande.sort((a,b) => a.friday.localeCompare(b.friday));
+    // Tilldela färg per avtal-id (roterande palett)
+    const avtalPalette = ['#6366f1','#0891b2','#16a34a','#d97706','#dc2626','#7c3aed','#0369a1','#15803d'];
+    const avtalColorMap = {};
+    let avtalColorIdx = 0;
+    kommande.forEach(k => { if (!avtalColorMap[k.avtal.id]) avtalColorMap[k.avtal.id] = avtalPalette[avtalColorIdx++ % avtalPalette.length]; });
+    // Sortera per avtal, sedan per fredag
+    kommande.sort((a,b) => a.avtal.id === b.avtal.id ? a.friday.localeCompare(b.friday) : a.friday.localeCompare(b.friday));
     const kommHtml = kommande.length ? `
-      <tr><td colspan="9" style="padding:5px 10px 5px;background:#eef2ff;font-size:10px;font-weight:700;color:#4f46e5;letter-spacing:.6px;text-transform:uppercase;border-bottom:1px solid #c7d2fe">📅 Kommande fakturor — ${kommande.length} st</td></tr>
-      ${kommande.map(k => `<tr style="background:#f5f7ff;border-bottom:1px solid #e0e7ff">
-        <td style="padding:7px 10px"><span style="display:inline-flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border-radius:2px;background:#818cf8;display:inline-block"></span><span style="color:#6366f1;font-size:11px">Planerad</span></span></td>
-        <td style="padding:7px 10px;color:#6366f1">${k.friday}</td>
-        <td style="padding:7px 10px;color:var(--muted2)">–</td>
-        <td style="padding:7px 10px;color:var(--muted2)">–</td>
-        <td style="padding:7px 10px;color:var(--muted2)">–</td>
-        <td style="padding:7px 10px;font-weight:600;color:#374151">${k.foretag}</td>
-        <td style="padding:7px 10px;text-align:right;color:var(--muted2)">–</td>
-        <td></td><td></td>
-      </tr>`).join('')}
+      <tr><td colspan="9" style="padding:5px 10px;background:#eef2ff;font-size:10px;font-weight:700;color:#4f46e5;letter-spacing:.6px;text-transform:uppercase;border-bottom:1px solid #c7d2fe">📅 Kommande fakturor — ${kommande.length} st</td></tr>
+      ${kommande.map(k => {
+        const ac = avtalColorMap[k.avtal.id];
+        const av = k.avtal;
+        // Estimerat belopp per vecka
+        const timmar = parseFloat(av.timmar_totalt)||0;
+        const timpris = parseFloat(av.timpris)||0;
+        const pct = parseFloat(av.ff_avgift_procent)||8.5;
+        const pStart = av.period_start ? new Date(av.period_start) : null;
+        const pEnd2  = av.period_end   ? new Date(av.period_end)   : null;
+        let veckor = 1;
+        if (pStart && pEnd2) { const ms = pEnd2 - pStart; veckor = Math.max(1, Math.round(ms/(7*86400000))); }
+        const totalFF = timmar * timpris * (pct/100);
+        const veckoBel = timmar && timpris ? Math.round(totalFF / veckor) : 0;
+        const beloppTxt = veckoBel ? veckoBel.toLocaleString('sv-SE') + ' kr' : '–';
+        return `<tr style="background:#f8f9ff;border-bottom:1px solid #e8eaf6;border-left:3px solid ${ac}">
+          <td style="padding:7px 10px"><span style="display:inline-flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border-radius:2px;background:${ac};display:inline-block"></span><span style="color:${ac};font-size:11px">Planerad</span></span></td>
+          <td style="padding:7px 10px;color:${ac}">${k.friday}</td>
+          <td style="padding:7px 10px;color:var(--muted2)">–</td>
+          <td style="padding:7px 10px;color:var(--muted2)">–</td>
+          <td style="padding:7px 10px;color:var(--muted2)">–</td>
+          <td style="padding:7px 10px;font-weight:600;color:#374151">${k.foretag}</td>
+          <td style="padding:7px 10px;text-align:right;color:${ac};font-weight:600">${beloppTxt}</td>
+          <td></td><td></td>
+        </tr>`;
+      }).join('')}
       <tr><td colspan="9" style="height:2px;background:#c7d2fe"></td></tr>` : '';
 
     listEl.innerHTML = `<div style="overflow-x:auto">
