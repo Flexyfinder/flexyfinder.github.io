@@ -4465,6 +4465,30 @@ td{padding:10px 12px;font-size:13px;color:#333}
         </div>
       </div>
       <iframe id="fakturaIframe" style="flex:1;border:none;width:100%;min-height:600px"></iframe>
+      ${(() => {
+        const av = avtalList2.find(x => x.id === f.avtal_id) || {};
+        const uthyrare = av.uthyrare_foretag || '–';
+        const inhyrare = av.inhyrare_foretag || av.foretag || '–';
+        const timmar   = parseFloat(av.timmar_totalt) || 0;
+        const timpris  = parseFloat(av.timpris) || 0;
+        const pct      = parseFloat(av.ff_avgift_procent) || 8.5;
+        const uppdrag  = timmar * timpris;
+        const avgift   = uppdrag * (pct / 100);
+        const exkl     = parseFloat(f.belopp_uthyrare) || 0;
+        const fmt = n => n.toLocaleString('sv-SE', {minimumFractionDigits:0, maximumFractionDigits:0}) + ' kr';
+        return `<div style="border-top:1px solid #e8eaf0;background:#f8f9fb;padding:12px 22px;font-size:12px;font-family:'DM Mono',monospace;color:#374151;display:flex;flex-wrap:wrap;gap:18px;align-items:center">
+          <span style="color:#6b7280;font-size:11px;font-weight:700;letter-spacing:.5px">KONTROLLRÄKNING</span>
+          <span><span style="color:#9ca3af">Uthyrare:</span> <strong>${uthyrare}</strong></span>
+          <span><span style="color:#9ca3af">Inhyrare:</span> <strong>${inhyrare}</strong></span>
+          <span style="color:#d1d5db">|</span>
+          ${timmar ? `<span><span style="color:#9ca3af">Timmar:</span> <strong>${timmar} h</strong></span>
+          <span><span style="color:#9ca3af">Timpris:</span> <strong>${timpris} kr/h</strong></span>
+          <span><span style="color:#9ca3af">Uppdragsbelopp:</span> <strong>${fmt(uppdrag)}</strong></span>
+          <span><span style="color:#9ca3af">FF-avgift (${pct}%):</span> <strong>${fmt(avgift)}</strong></span>
+          <span style="color:#d1d5db">|</span>` : ''}
+          <span><span style="color:#9ca3af">Fakturabelopp exkl. moms:</span> <strong style="color:#f97316">${fmt(exkl)}</strong></span>
+        </div>`;
+      })()}
     </div>`;
   const iframe = document.getElementById('fakturaIframe');
   iframe.srcdoc = html;
