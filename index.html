@@ -1331,10 +1331,14 @@
       <div class="form-group"><label class="form-label">Företag</label><div class="ac-wrap"><input class="form-input" id="aInhForetag" placeholder="Byggbolaget AB" oninput="acKund(this,'inh')" onblur="setTimeout(()=>closeAc('aInhAc'),200)" autocomplete="off"><div class="ac-dropdown" id="aInhAc" style="display:none"></div></div></div>
       <div class="form-group"><label class="form-label">Org.nr</label><input class="form-input" id="aInhOrgNr" placeholder="556xxx-xxxx"></div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:20px">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:8px">
       <div class="form-group"><label class="form-label">Kontaktperson</label><input class="form-input" id="aInhKontakt" placeholder="Anna Svensson"></div>
       <div class="form-group"><label class="form-label">E-post</label><input class="form-input" id="aInhEpost" type="email" placeholder="anna@..."></div>
       <div class="form-group"><label class="form-label">Telefon</label><input class="form-input" id="aInhTelefon" placeholder="07xx-xxx xxx"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;margin-bottom:20px">
+      <div class="form-group"><label class="form-label">Arbetsplats (adress och ort)</label><input class="form-input" id="aArbetsplats" placeholder="Exempelgatan 1, Hägersten"></div>
+      <div class="form-group"><label class="form-label">Antal personer</label><input class="form-input" id="aAntalPers" type="number" min="1" value="1"></div>
     </div>
 
     <!-- UTHYRARE -->
@@ -1348,21 +1352,19 @@
       <div class="form-group"><label class="form-label">E-post</label><input class="form-input" id="aUthEpost" type="email"></div>
       <div class="form-group"><label class="form-label">Telefon</label><input class="form-input" id="aUthTelefon"></div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:20px">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:8px">
       <div class="form-group"><label class="form-label">Fakturaadress</label><input class="form-input" id="aUthFaktadr" placeholder="Storgatan 1"></div>
       <div class="form-group"><label class="form-label">Postnummer</label><input class="form-input" id="aUthPostnr" placeholder="123 45"></div>
       <div class="form-group"><label class="form-label">Ort</label><input class="form-input" id="aUthOrt" placeholder="Stockholm"></div>
       <div class="form-group"><label class="form-label">E-post för fakturor</label><input class="form-input" id="aUthFaktEpost" type="email" placeholder="faktura@..."></div>
     </div>
-
-    <!-- UPPDRAG -->
-    <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--green);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px;padding-top:14px;border-top:1px solid var(--border)">Uppdrag</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:8px">
-      <div class="form-group"><label class="form-label">Yrkesroll / kompetens</label><input class="form-input" id="aYrkesroll" placeholder="Byggare"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px">
+      <div class="form-group"><label class="form-label">Yrkesroll / kompetens</label><input class="form-input" id="aYrkesroll" placeholder="Elektriker"></div>
       <div class="form-group"><label class="form-label">Resurs (namn)</label><input class="form-input" id="aResurs" placeholder="Erik Bergkvist"></div>
-      <div class="form-group"><label class="form-label">Antal personer</label><input class="form-input" id="aAntalPers" type="number" min="1" value="1"></div>
     </div>
-    <div class="form-group" style="margin-bottom:8px"><label class="form-label">Arbetsplats (adress och ort)</label><input class="form-input" id="aArbetsplats" placeholder="Exempelgatan 1, Hägersten"></div>
+
+    <!-- UPPDRAGSPERIOD -->
+    <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--green);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px;padding-top:14px;border-top:1px solid var(--border)">Uppdragsperiod</div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;gap:10px;margin-bottom:20px">
       <div class="form-group"><label class="form-label">Period från</label><input class="form-input" id="aPeriodStart" type="date" oninput="autoFillTimmar()"></div>
       <div class="form-group"><label class="form-label">Period till</label><input class="form-input" id="aPeriodEnd" type="date" oninput="autoFillTimmar()"></div>
