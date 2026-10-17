@@ -927,12 +927,21 @@
         <div style="font-size:16px;font-weight:700">Fakturering</div>
         <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace">Veckovis fakturering per uppdrag</div>
       </div>
-      <button class="btn btn-ghost btn-sm" onclick="exportFakturorCSV()" style="font-size:12px">⬇ Exportera CSV</button>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-ghost btn-sm" onclick="exportFakturorCSV()" style="font-size:12px">⬇ Exportera CSV</button>
+        <div style="display:flex;border:1px solid var(--border);border-radius:7px;overflow:hidden">
+          <button id="fvBtn-grupp" onclick="setFakturaView('grupp')" style="padding:5px 12px;font-size:11px;font-family:'DM Mono',monospace;border:none;cursor:pointer;background:var(--accent);color:#fff" title="Grupperad per uppdrag">📦 Grupp</button>
+          <button id="fvBtn-tabell" onclick="setFakturaView('tabell')" style="padding:5px 12px;font-size:11px;font-family:'DM Mono',monospace;border:none;cursor:pointer;background:var(--surface2);color:var(--muted2)" title="Kompakt tabellvy">☰ Tabell</button>
+        </div>
+      </div>
     </div>
     <div id="faktureringsNotis"></div>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px" id="fakturaKpi"></div>
     <div id="manadsoversikt" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px"></div>
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px">
+      <div id="fakturaTabellSearch" style="display:none;margin-bottom:12px">
+        <input type="text" id="fakturaSearchInput" placeholder="🔍 Sök kundnamn, fakturanummer..." oninput="renderFakturaList()" style="width:100%;max-width:380px;padding:7px 13px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);color:var(--text);font-size:12px;font-family:'DM Mono',monospace">
+      </div>
       <div id="fakturaList"><div style="color:var(--muted);font-size:13px;font-family:'DM Mono',monospace;padding:20px 0">Laddar...</div></div>
     </div>
   </div>
@@ -940,6 +949,9 @@
 
 <!-- KUNDREGISTER PAGE -->
 <div class="page" id="page-kundregister">
+  <div style="margin-bottom:14px">
+    <input type="text" id="kundregisterSearch" placeholder="🔍 Sök företag, kontakt eller org.nr..." oninput="renderKundregister()" style="width:100%;max-width:420px;padding:8px 14px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:13px;font-family:'DM Mono',monospace">
+  </div>
   <div id="kundregisterList"><div style="color:var(--muted);font-size:13px;font-family:'DM Mono',monospace;padding:20px 0">Inga kunder ännu — klicka "+ Lägg till kund" för att börja</div></div>
 </div>
 
@@ -1588,6 +1600,19 @@ let kunder = [];
 let avtalList2 = [];
 let fakturorList = [];
 let _kreditAvNr = null; // temp reference for kreditfaktura preview
+let fakturaView = 'grupp'; // 'grupp' | 'tabell'
+
+function setFakturaView(v) {
+  fakturaView = v;
+  const bg = 'var(--accent)', fg = '#fff', bg2 = 'var(--surface2)', fg2 = 'var(--muted2)';
+  const gBtn = document.getElementById('fvBtn-grupp');
+  const tBtn = document.getElementById('fvBtn-tabell');
+  if (gBtn) { gBtn.style.background = v==='grupp'?bg:bg2; gBtn.style.color = v==='grupp'?fg:fg2; }
+  if (tBtn) { tBtn.style.background = v==='tabell'?bg:bg2; tBtn.style.color = v==='tabell'?fg:fg2; }
+  const srch = document.getElementById('fakturaTabellSearch');
+  if (srch) srch.style.display = v==='tabell' ? '' : 'none';
+  renderFakturaList();
+}
 let affSub = 'kontroll';
 let fbFilter = 'alla';
 let currentContactId = null;
@@ -3403,8 +3428,29 @@ function showKundHistorik(foretag) {
     <div style="background:var(--surface2);border-radius:8px;padding:12px"><div style="font-size:10px;color:var(--muted);margin-bottom:2px">FF-avgift fakturerat</div><div style="font-size:18px;font-weight:700;color:var(--orange)">${Math.round(totFFAvgift).toLocaleString('sv-SE')} kr</div></div>
     <div style="background:var(--surface2);border-radius:8px;padding:12px"><div style="font-size:10px;color:var(--muted);margin-bottom:2px">Varav betalt</div><div style="font-size:18px;font-weight:700;color:var(--green)">${Math.round(totBetalt).toLocaleString('sv-SE')} kr</div></div>
   </div>`;
+  if (faks.length) {
+    html += `<div style="font-size:11px;font-weight:700;color:var(--muted);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Fakturor</div>`;
+    html += [...faks].sort((a,b)=>(b.faktura_skickad||'').localeCompare(a.faktura_skickad||'')).map(f => {
+      const a = avtalList2.find(x=>x.id===f.avtal_id);
+      const partner = a ? (a.uthyrare_foretag===foretag ? (a.inhyrare_foretag||'–') : (a.uthyrare_foretag||'–')) : '–';
+      const betald = !!f.faktura_betald;
+      const statusColor = betald ? 'var(--green)' : f.faktura_skickad ? 'var(--orange)' : 'var(--muted)';
+      const statusText = betald ? '✅ Betald' : f.faktura_skickad ? '📤 Skickad' : '⏳ Ej skickad';
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid var(--border);font-family:'DM Mono',monospace;font-size:12px">
+        <div>
+          ${f.period_start?`<span style="color:var(--muted2);font-size:11px">${f.period_start}–${f.period_end||'?'}</span> `:''}
+          <span style="color:var(--muted);font-size:11px">${partner}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px">
+          <span style="color:${statusColor};font-size:11px">${statusText}</span>
+          <span style="font-weight:700;color:var(--orange)">${Math.round(parseFloat(f.belopp_uthyrare)||0).toLocaleString('sv-SE')} kr</span>
+          <button class="btn btn-ghost btn-sm" onclick="closeModal('kundHistorikModal');showPage('affarer',document.querySelector('[onclick*=affarer]'));showAffSub('faktura',document.getElementById('affBtn-faktura'));openFakturaModal('${f.id}')" style="font-size:10px">✏</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
   if (avtal.length) {
-    html += `<div style="font-size:11px;font-weight:700;color:var(--muted);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Avtal</div>`;
+    html += `<div style="font-size:11px;font-weight:700;color:var(--muted);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;margin-top:16px">Avtal</div>`;
     html += avtal.map(a => {
       const role = a.uthyrare_foretag===foretag ? 'Uthyrare' : 'Inhyrare';
       const partner = a.uthyrare_foretag===foretag ? (a.inhyrare_foretag||'–') : (a.uthyrare_foretag||'–');
@@ -3632,6 +3678,81 @@ function renderFakturaList() {
     listEl.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);font-size:13px;font-family:\'DM Mono\',monospace">Inga fakturor registrerade — lägg till via Avtal-fliken</div>';
     return;
   }
+
+  // ─── KOMPAKT TABELLVY ─────────────────────────────────────
+  if (fakturaView === 'tabell') {
+    const q = (document.getElementById('fakturaSearchInput')?.value||'').toLowerCase().trim();
+    let rows = [...fakturorList].sort((a,b)=>{
+      const da = a.faktura_skickad||a.created_at||'';
+      const db = b.faktura_skickad||b.created_at||'';
+      return db > da ? 1 : db < da ? -1 : 0;
+    });
+    if (q) rows = rows.filter(f => {
+      const a = avtalList2.find(x=>x.id===f.avtal_id);
+      const foretag = (a?.inhyrare_foretag||f.foretag||'').toLowerCase();
+      const nr = ('FF-'+(f.faktura_nr||'')+(f.fortnox_nr||'')).toLowerCase();
+      return foretag.includes(q) || nr.includes(q);
+    });
+    const getStatus = f => {
+      if (f.faktura_betald) return { dot:'#22c55e', label:'Betald' };
+      if (f.faktura_skickad) return { dot:'#eab308', label:'Ej betald' };
+      return { dot:'#94a3b8', label:'Ej skickad' };
+    };
+    listEl.innerHTML = `<div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:12px;font-family:'DM Mono',monospace">
+        <thead><tr style="color:var(--muted);border-bottom:2px solid var(--border);text-align:left">
+          <th style="padding:7px 10px;font-weight:600">Status</th>
+          <th style="padding:7px 10px;font-weight:600">Fakturadatum</th>
+          <th style="padding:7px 10px;font-weight:600">Förfallodatum</th>
+          <th style="padding:7px 10px;font-weight:600">FF-nr</th>
+          <th style="padding:7px 10px;font-weight:600">Fortnox</th>
+          <th style="padding:7px 10px;font-weight:600">Kundnamn</th>
+          <th style="padding:7px 10px;font-weight:600;text-align:right">Belopp</th>
+          <th style="padding:7px 10px;font-weight:600">Typ</th>
+          <th></th>
+        </tr></thead>
+        <tbody>${rows.map(f => {
+          const av = avtalList2.find(x=>x.id===f.avtal_id);
+          const foretag = av?.inhyrare_foretag || f.foretag || '–';
+          const st = getStatus(f);
+          const belopp = parseFloat(f.belopp_uthyrare)||0;
+          const isKredit = belopp < 0;
+          const forfallo = f.faktura_skickad ? (() => { const d = new Date(f.faktura_skickad); d.setDate(d.getDate()+30); return d.toISOString().split('T')[0]; })() : '–';
+          return `<tr style="border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''" onclick="openFakturaModal('${f.id}')">
+            <td style="padding:8px 10px">
+              <span style="display:inline-flex;align-items:center;gap:5px">
+                <span style="width:10px;height:10px;border-radius:2px;background:${st.dot};display:inline-block;flex-shrink:0"></span>
+                <span style="color:var(--muted2)">${st.label}</span>
+              </span>
+            </td>
+            <td style="padding:8px 10px;color:var(--muted2)">${f.faktura_skickad||'–'}</td>
+            <td style="padding:8px 10px;color:var(--muted2)">${forfallo}</td>
+            <td style="padding:8px 10px;color:var(--accent)">FF-${f.faktura_nr||'?'}</td>
+            <td style="padding:8px 10px;color:var(--muted2)">${f.fortnox_nr||'–'}</td>
+            <td style="padding:8px 10px;font-weight:600">${foretag}</td>
+            <td style="padding:8px 10px;text-align:right;font-weight:700;color:${isKredit?'#dc2626':'var(--orange)'}">
+              ${Math.round(Math.abs(belopp)).toLocaleString('sv-SE')} kr
+            </td>
+            <td style="padding:8px 10px">
+              <span style="font-size:10px;padding:2px 7px;border-radius:4px;background:${isKredit?'#fee2e2':'rgba(37,99,235,0.08)'};color:${isKredit?'#dc2626':'var(--accent)'}">
+                ${isKredit?'Kreditfaktura':'Faktura'}
+              </span>
+            </td>
+            <td style="padding:4px 8px" onclick="event.stopPropagation()">
+              <div style="display:flex;gap:4px">
+                <button onclick="generateFaktura('${f.id}')" style="font-size:10px;padding:3px 7px;background:var(--surface2);border:1px solid var(--border);border-radius:5px;cursor:pointer" title="Granska">📄</button>
+                ${FORTNOX_REFRESH_TOK?`<button onclick="fortnoxCreateFaktura('${f.id}')" style="font-size:10px;padding:3px 7px;background:${f.fortnox_nr?'#f0fdf4':'#eff6ff'};color:${f.fortnox_nr?'#16a34a':'#1d4ed8'};border:1px solid ${f.fortnox_nr?'#86efac':'#bfdbfe'};border-radius:5px;cursor:pointer" title="Fortnox">📊</button>`:''}
+              </div>
+            </td>
+          </tr>`;
+        }).join('')}
+        </tbody>
+      </table>
+      ${rows.length===0?`<div style="text-align:center;padding:30px;color:var(--muted);font-size:12px">Inga träffar</div>`:''}
+    </div>`;
+    return;
+  }
+
   // group by avtal_id
   const groups = {};
   fakturorList.forEach(f => {
@@ -3781,8 +3902,15 @@ function renderAffarer() {
 function renderKundregister() {
   const el = document.getElementById('kundregisterList');
   if (!el) return;
-  const list = [...kunder].sort((a,b)=>a.foretag.localeCompare(b.foretag,'sv'));
-  if (!list.length) { el.innerHTML = '<div style="color:var(--muted);font-size:13px;font-family:\'DM Mono\',monospace;padding:20px 0">Inga kunder ännu — klicka "+ Lägg till kund" för att börja</div>'; return; }
+  const q = (document.getElementById('kundregisterSearch')?.value||'').toLowerCase().trim();
+  let list = [...kunder].sort((a,b)=>a.foretag.localeCompare(b.foretag,'sv'));
+  if (q) list = list.filter(k =>
+    (k.foretag||'').toLowerCase().includes(q) ||
+    (k.kontakt||'').toLowerCase().includes(q) ||
+    (k.orgNr||'').toLowerCase().includes(q) ||
+    (k.epost||'').toLowerCase().includes(q)
+  );
+  if (!list.length) { el.innerHTML = '<div style="color:var(--muted);font-size:13px;font-family:\'DM Mono\',monospace;padding:20px 0">' + (q ? 'Inga träffar för "'+q+'"' : 'Inga kunder ännu — klicka "+ Lägg till kund" för att börja') + '</div>'; return; }
   el.innerHTML = `<div style="display:grid;gap:12px">${list.map(k=>{
     // Räkna avtal kopplade till denna kund
     const avtalCount = avtalList2.filter(a =>
@@ -3796,6 +3924,7 @@ function renderKundregister() {
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap">
         <button class="btn btn-ghost btn-sm" onclick="openKundkortModal('${k.id}')" style="font-size:11px;padding:3px 10px">✏ Redigera</button>
+        <button class="btn btn-ghost btn-sm" onclick="showKundHistorik('${k.foretag.replace(/'/g,"\\'")}')" style="font-size:11px;padding:3px 10px">📋 Historik</button>
         <div style="font-weight:700;font-size:15px">${k.foretag}</div>
         ${k.kundnr?`<span style="font-family:'DM Mono',monospace;font-size:10px;font-weight:700;color:var(--accent);background:rgba(37,99,235,0.1);border-radius:4px;padding:2px 8px">${k.kundnr}</span>`:''}
         ${k.roll?`<span style="font-size:10px;font-family:'DM Mono',monospace;padding:2px 8px;border-radius:20px;background:${rollColor};color:${rollText}">${k.roll}</span>`:''}
@@ -5426,9 +5555,9 @@ async function fortnoxCreateFaktura(fakturaId) {
     InvoiceDate: f.faktura_skickad || new Date().toISOString().slice(0,10),
     DueDate: dueDate,
     YourReference: 'FF-' + (f.faktura_nr||'?'),
-    Comments: (f.period_start && f.period_end) ? 'Period: ' + f.period_start + ' – ' + f.period_end : '',
+    Comments: 'Omvänd betalningsskyldighet för byggmoms tillämpas. Leverantören fakturerar utan moms. Köparen är skattskyldig och ansvarar för att redovisa och betala momsen till Skatteverket.' + ((f.period_start && f.period_end) ? ' Period: ' + f.period_start + ' – ' + f.period_end : ''),
     Currency: 'SEK',
-    InvoiceRows: [{ Description: 'Förmedlingsavgift FlexyFinder – Period ' + (f.period_start||'') + ' – ' + (f.period_end||''), Price: belopp, DeliveredQuantity: '1', VAT: 25, AccountNumber: 3000 }]
+    InvoiceRows: [{ Description: 'Förmedlingsavgift FlexyFinder – Period ' + (f.period_start||'') + ' – ' + (f.period_end||''), Price: belopp, DeliveredQuantity: '1', VAT: 0, AccountNumber: 3000 }]
   }};
   try {
     const resp = await fetch('https://api.fortnox.se/3/invoices', {
