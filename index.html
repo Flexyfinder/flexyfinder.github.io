@@ -740,6 +740,11 @@
           <div class="kpi-value" id="ffKpiOppnadeVal">–</div>
           <div class="kpi-sub">senaste 7 dagarna</div>
         </div>
+        <div class="kpi" id="ffKpiForfallt" style="cursor:pointer;background:rgba(220,38,38,0.07);border-color:rgba(220,38,38,0.2);display:none" onclick="showPage('affarer',document.querySelector('[onclick*=affarer]'));showAffSub('faktura',document.getElementById('affBtn-faktura'));setFakturaView('tabell')" title="Gå till förfallna fakturor">
+          <div class="kpi-label" style="color:#dc2626">⚠ Förfallna</div>
+          <div class="kpi-value" id="ffKpiForfalltVal" style="color:#dc2626;font-size:22px">–</div>
+          <div class="kpi-sub" style="color:#dc2626">ej betalda efter förfallodatum</div>
+        </div>
       </div>
 
       <div class="section-header" style="margin-top:24px">
@@ -1941,6 +1946,18 @@ function renderDashboard() {
   const attSkickaKpi = fakturorList.filter(f => !f.faktura_skickad).length;
   const attSkickaEl = document.getElementById('ffKpiAttSkickaVal');
   if (attSkickaEl) attSkickaEl.textContent = attSkickaKpi;
+
+  // Förfallna fakturor
+  const today0 = new Date(); today0.setHours(0,0,0,0);
+  const forfalltFaks = fakturorList.filter(f => {
+    if (!f.faktura_skickad || f.faktura_betald) return false;
+    const due = new Date(f.faktura_skickad); due.setDate(due.getDate()+30); due.setHours(0,0,0,0);
+    return due < today0;
+  });
+  const forfalltEl = document.getElementById('ffKpiForfalltVal');
+  const forfalltCard = document.getElementById('ffKpiForfallt');
+  if (forfalltEl) forfalltEl.textContent = forfalltFaks.length + ' st';
+  if (forfalltCard) forfalltCard.style.display = forfalltFaks.length > 0 ? '' : 'none';
 
   // Öppnade dokument senaste 7 dagarna
   const sjuAgo = new Date(); sjuAgo.setDate(sjuAgo.getDate()-7);
@@ -3694,10 +3711,15 @@ function renderFakturaList() {
       const nr = ('FF-'+(f.faktura_nr||'')+(f.fortnox_nr||'')).toLowerCase();
       return foretag.includes(q) || nr.includes(q);
     });
+    const todayMs = new Date().setHours(0,0,0,0);
     const getStatus = f => {
-      if (f.faktura_betald) return { dot:'#22c55e', label:'Betald' };
-      if (f.faktura_skickad) return { dot:'#eab308', label:'Ej betald' };
-      return { dot:'#94a3b8', label:'Ej skickad' };
+      if (f.faktura_betald) return { dot:'#22c55e', label:'Betald', overdue: false };
+      if (f.faktura_skickad) {
+        const due = new Date(f.faktura_skickad); due.setDate(due.getDate()+30); due.setHours(0,0,0,0);
+        if (due.getTime() < todayMs) return { dot:'#dc2626', label:'Förfallen', overdue: true };
+        return { dot:'#eab308', label:'Ej betald', overdue: false };
+      }
+      return { dot:'#94a3b8', label:'Ej skickad', overdue: false };
     };
     listEl.innerHTML = `<div style="overflow-x:auto">
       <table style="width:100%;border-collapse:collapse;font-size:12px;font-family:'DM Mono',monospace">
@@ -3719,7 +3741,8 @@ function renderFakturaList() {
           const belopp = parseFloat(f.belopp_uthyrare)||0;
           const isKredit = belopp < 0;
           const forfallo = f.faktura_skickad ? (() => { const d = new Date(f.faktura_skickad); d.setDate(d.getDate()+30); return d.toISOString().split('T')[0]; })() : '–';
-          return `<tr style="border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''" onclick="openFakturaModal('${f.id}')">
+          const rowBg = st.overdue ? 'rgba(220,38,38,0.06)' : '';
+          return `<tr style="border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s;background:${rowBg}" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='${rowBg}'" onclick="openFakturaModal('${f.id}')">
             <td style="padding:8px 10px">
               <span style="display:inline-flex;align-items:center;gap:5px">
                 <span style="width:10px;height:10px;border-radius:2px;background:${st.dot};display:inline-block;flex-shrink:0"></span>
