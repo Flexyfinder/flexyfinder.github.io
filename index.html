@@ -3379,6 +3379,7 @@ function renderAvtalCards() {
           </div>
           <div style="display:flex;gap:4px;align-self:flex-end;padding-bottom:0">
             <button class="btn btn-ghost btn-sm" onclick="mailKopiaFranAvtal('${a.id}')" style="font-size:10px;color:#0369a1;border-color:#bae6fd" title="Skicka kopia av avtal + faktura via mail">📧 Skicka kopia</button>
+            <button class="btn btn-ghost btn-sm" onclick="oppnaFakturaForAvtal('${a.id}')" style="font-size:10px;color:#7c3aed;border-color:#c4b5fd" title="Gå till fakturor för detta avtal">📋 Faktura</button>
             <button class="btn btn-ghost btn-sm" onclick="openAvtalModal('${a.id}')" style="font-size:10px">✏ Redigera</button>
             ${a.status !== 'Avslutat'
               ? `<button class="btn btn-ghost btn-sm" onclick="avslutaAvtal('${a.id}')" style="font-size:10px;color:var(--muted)" title="Markera som avslutat — flyttas till arkivet">📁 Avsluta</button>`
@@ -3759,15 +3760,10 @@ function renderFakturaList() {
             <td style="padding:8px 10px;text-align:right;font-weight:700;color:${isKredit?'#dc2626':'var(--orange)'}">
               ${Math.round(Math.abs(belopp)).toLocaleString('sv-SE')} kr
             </td>
-            <td style="padding:8px 10px">
-              <span style="font-size:10px;padding:2px 7px;border-radius:4px;background:${isKredit?'#fee2e2':'rgba(37,99,235,0.08)'};color:${isKredit?'#dc2626':'var(--accent)'}">
-                ${isKredit?'Kreditfaktura':'Faktura'}
-              </span>
-            </td>
             <td style="padding:4px 8px" onclick="event.stopPropagation()">
               <div style="display:flex;gap:4px">
-                <button onclick="generateFaktura('${f.id}')" style="font-size:10px;padding:3px 7px;background:var(--surface2);border:1px solid var(--border);border-radius:5px;cursor:pointer" title="Granska">📄</button>
-                ${FORTNOX_REFRESH_TOK?`<button onclick="fortnoxCreateFaktura('${f.id}')" style="font-size:10px;padding:3px 7px;background:${f.fortnox_nr?'#f0fdf4':'#eff6ff'};color:${f.fortnox_nr?'#16a34a':'#1d4ed8'};border:1px solid ${f.fortnox_nr?'#86efac':'#bfdbfe'};border-radius:5px;cursor:pointer" title="Fortnox">📊</button>`:''}
+                <button onclick="generateFaktura('${f.id}')" style="font-size:10px;padding:3px 7px;background:${isKredit?'#fee2e2':'rgba(37,99,235,0.08)'};color:${isKredit?'#dc2626':'var(--accent)'};border:1px solid ${isKredit?'#fca5a5':'rgba(37,99,235,0.2)'};border-radius:5px;cursor:pointer" title="Se faktura">📄 ${isKredit?'Se kreditfaktura':'Se faktura'}</button>
+                ${FORTNOX_REFRESH_TOK&&!f.fortnox_nr?`<button onclick="fortnoxCreateFaktura('${f.id}')" style="font-size:10px;padding:3px 7px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:5px;cursor:pointer" title="Skicka faktura till Fortnox">📊 →FX</button>`:''}
               </div>
             </td>
           </tr>`;
@@ -3831,9 +3827,8 @@ function renderFakturaList() {
             <td style="padding:4px 4px">
               <div style="display:flex;gap:4px;align-items:center;flex-wrap:nowrap">
                 <button onclick="event.stopPropagation();generateFaktura('${f.id}')" style="font-size:11px;padding:4px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;cursor:pointer;white-space:nowrap" title="Granska faktura">📄 Granska</button>
-                <button onclick="event.stopPropagation();mailFaktura('${f.id}')" style="font-size:11px;padding:4px 8px;background:${f.faktura_skickad?'#22c55e':'#2563eb'};color:#fff;border:none;border-radius:6px;cursor:pointer;white-space:nowrap">📧 ${f.faktura_skickad?'✓':'Skicka'}</button>
                 ${f.faktura_skickad?`<button onclick="event.stopPropagation();mailAvtalOchFaktura('${f.id}')" style="font-size:11px;padding:4px 8px;background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd;border-radius:6px;cursor:pointer;white-space:nowrap" title="Skicka kopia av avtal + faktura">📧 Skicka kopia</button>`:''}
-                ${FORTNOX_REFRESH_TOK?`<button onclick="event.stopPropagation();fortnoxCreateFaktura('${f.id}')" style="font-size:11px;padding:4px 8px;background:${f.fortnox_nr?'#f0fdf4':'#eff6ff'};color:${f.fortnox_nr?'#16a34a':'#1d4ed8'};border:1px solid ${f.fortnox_nr?'#86efac':'#bfdbfe'};border-radius:6px;cursor:pointer;white-space:nowrap" title="${f.fortnox_nr?'Fortnox nr '+f.fortnox_nr+' — klicka för att uppdatera':'Skapa i Fortnox'}">📊 ${f.fortnox_nr?'FX '+f.fortnox_nr:'→ FX'}</button>`:''}
+                ${FORTNOX_REFRESH_TOK?`<button onclick="event.stopPropagation();fortnoxCreateFaktura('${f.id}')" style="font-size:11px;padding:4px 8px;background:${f.fortnox_nr?'#f0fdf4':'#eff6ff'};color:${f.fortnox_nr?'#16a34a':'#1d4ed8'};border:1px solid ${f.fortnox_nr?'#86efac':'#bfdbfe'};border-radius:6px;cursor:pointer;white-space:nowrap" title="${f.fortnox_nr?'Fortnox nr '+f.fortnox_nr+' — klicka för att uppdatera':'Skicka faktura till Fortnox'}">📊 ${f.fortnox_nr?'FX '+f.fortnox_nr:'Faktura till Fortnox'}</button>`:''}
                 <button onclick="event.stopPropagation();doDeleteFaktura('${f.id}')" style="font-size:11px;padding:4px 8px;background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;border-radius:6px;cursor:pointer;white-space:nowrap" title="Radera faktura">🗑 Radera</button>
                 ${(parseFloat(f.belopp_uthyrare)||0)>0?`<button onclick="event.stopPropagation();createKreditfaktura('${f.id}')" style="font-size:11px;padding:4px 8px;background:#fdf4ff;color:#7c3aed;border:1px solid #c4b5fd;border-radius:6px;cursor:pointer;white-space:nowrap" title="Kreditera faktura">↩ Kredit</button>`:''}
                 <button onclick="event.stopPropagation();sparaBada('${f.avtal_id}','${f.id}')" style="font-size:11px;padding:4px 8px;background:#f0fdf4;color:#16a34a;border:1px solid #86efac;border-radius:6px;cursor:pointer;white-space:nowrap" title="Öppna avtal + faktura i nya flikar">📁 Båda</button>
@@ -4458,40 +4453,58 @@ td{padding:10px 12px;font-size:13px;color:#333}
   }
   modal.style.display = 'flex';
   modal.innerHTML = `
-    <div style="background:#fff;border-radius:14px;width:100%;max-width:880px;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 30px 80px rgba(0,0,0,0.35);overflow:hidden">
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-bottom:1px solid #e8eaf0;background:#f8f9fb">
-        <div style="font-weight:700;font-size:14px">${isKredit?'🔴 Förhandsgranskning — Kreditfaktura':'Förhandsgranskning — Faktura'}</div>
+    <div style="background:#fff;border-radius:14px;width:100%;max-width:1200px;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 30px 80px rgba(0,0,0,0.35);overflow:hidden">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 20px;border-bottom:1px solid #e8eaf0;background:#f8f9fb;flex-shrink:0">
+        <div style="font-weight:700;font-size:14px">${isKredit?'🔴 Fakturakopia — Kreditfaktura':'📄 Fakturakopia'}</div>
         <div style="display:flex;gap:8px">
-          <button onclick="mailAvtalOchFaktura('${fakturaId}');closeFakturaPreview();" style="background:#f97316;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;font-weight:600">📧 Skicka avtal + faktura</button>
           ${isKredit?`<button onclick="closeFakturaPreview();createReplacementFaktura('${f.avtal_id}')" style="background:#16a34a;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;font-weight:600">📄 Ny ersättningsfaktura</button>`:''}
           <button onclick="closeFakturaPreview()" style="background:#f0f2f7;border:1px solid #dde1ec;border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer;font-weight:600">✕ Stäng</button>
         </div>
       </div>
-      <iframe id="fakturaIframe" style="flex:1;border:none;width:100%;min-height:600px"></iframe>
-      ${(() => {
-        const av = avtalList2.find(x => x.id === f.avtal_id) || {};
-        const uthyrare = av.uthyrare_foretag || '–';
-        const inhyrare = av.inhyrare_foretag || av.foretag || '–';
-        const timmar   = parseFloat(av.timmar_totalt) || 0;
-        const timpris  = parseFloat(av.timpris) || 0;
-        const pct      = parseFloat(av.ff_avgift_procent) || 8.5;
-        const uppdrag  = timmar * timpris;
-        const avgift   = uppdrag * (pct / 100);
-        const exkl     = parseFloat(f.belopp_uthyrare) || 0;
-        const fmt = n => n.toLocaleString('sv-SE', {minimumFractionDigits:0, maximumFractionDigits:0}) + ' kr';
-        return `<div style="border-top:1px solid #e8eaf0;background:#f8f9fb;padding:12px 22px;font-size:12px;font-family:'DM Mono',monospace;color:#374151;display:flex;flex-wrap:wrap;gap:18px;align-items:center">
-          <span style="color:#6b7280;font-size:11px;font-weight:700;letter-spacing:.5px">KONTROLLRÄKNING</span>
-          <span><span style="color:#9ca3af">Uthyrare:</span> <strong>${uthyrare}</strong></span>
-          <span><span style="color:#9ca3af">Inhyrare:</span> <strong>${inhyrare}</strong></span>
-          <span style="color:#d1d5db">|</span>
-          ${timmar ? `<span><span style="color:#9ca3af">Timmar:</span> <strong>${timmar} h</strong></span>
-          <span><span style="color:#9ca3af">Timpris:</span> <strong>${timpris} kr/h</strong></span>
-          <span><span style="color:#9ca3af">Uppdragsbelopp:</span> <strong>${fmt(uppdrag)}</strong></span>
-          <span><span style="color:#9ca3af">FF-avgift (${pct}%):</span> <strong>${fmt(avgift)}</strong></span>
-          <span style="color:#d1d5db">|</span>` : ''}
-          <span><span style="color:#9ca3af">Fakturabelopp exkl. moms:</span> <strong style="color:#f97316">${fmt(exkl)}</strong></span>
-        </div>`;
-      })()}
+      <div style="display:flex;flex:1;overflow:hidden;min-height:0">
+        ${(() => {
+          const av = avtalList2.find(x => x.id === f.avtal_id) || {};
+          const uthyrare = av.uthyrare_foretag || '–';
+          const inhyrare = av.inhyrare_foretag || av.foretag || '–';
+          const resurs   = av.resurs_namn || '–';
+          const yrkesroll = av.yrkesroll || '–';
+          const timmar   = parseFloat(av.timmar_totalt) || 0;
+          const timpris  = parseFloat(av.timpris) || 0;
+          const pct      = parseFloat(av.ff_avgift_procent) || 8.5;
+          const uppdrag  = timmar * timpris;
+          const avgift   = uppdrag * (pct / 100);
+          const exkl     = parseFloat(f.belopp_uthyrare) || 0;
+          const moms     = Math.round(exkl * 0.25);
+          const inkl     = exkl + moms;
+          const fmt = n => n.toLocaleString('sv-SE', {minimumFractionDigits:0, maximumFractionDigits:0}) + ' kr';
+          const row = (label, val, bold, color) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #f0f2f7">
+            <span style="color:#6b7280;font-size:12px">${label}</span>
+            <span style="font-size:12px;font-weight:${bold?'700':'500'};color:${color||'#111827'}">${val}</span>
+          </div>`;
+          const section = title => `<div style="margin:16px 0 4px;font-size:10px;font-weight:700;letter-spacing:.8px;color:#9ca3af;text-transform:uppercase">${title}</div>`;
+          return `<div style="width:340px;min-width:280px;border-right:1px solid #e8eaf0;background:#f9fafb;overflow-y:auto;padding:16px 20px;flex-shrink:0">
+            ${section('Faktura')}
+            ${row('FF-nummer', 'FF-' + (f.faktura_nr||'?'))}
+            ${row('Fakturadatum', f.faktura_skickad||'–')}
+            ${row('Status', f.fortnox_nr ? '✅ Fortnox FX-'+f.fortnox_nr : (f.faktura_skickad ? '📧 Skickad' : '⏳ Ej skickad'))}
+            ${section('Parter')}
+            ${row('Uthyrare', uthyrare)}
+            ${row('Inhyrare', inhyrare)}
+            ${row('Resurs', resurs)}
+            ${row('Yrkesroll', yrkesroll)}
+            ${timmar ? `${section('Uppdrag & uträkning')}
+            ${row('Timmar totalt', timmar + ' h')}
+            ${row('Timpris', fmt(timpris))}
+            ${row('Uppdragsbelopp', fmt(uppdrag))}
+            ${row('FF-avgift ('+pct+'%)', fmt(avgift))}` : ''}
+            ${section('Belopp')}
+            ${row('Exkl. moms', fmt(exkl))}
+            ${row('Moms (25%)', fmt(moms))}
+            ${row('Inkl. moms', fmt(inkl), true, '#f97316')}
+          </div>`;
+        })()}
+        <iframe id="fakturaIframe" style="flex:1;border:none;min-height:0"></iframe>
+      </div>
     </div>`;
   const iframe = document.getElementById('fakturaIframe');
   iframe.srcdoc = html;
@@ -4584,6 +4597,25 @@ async function ensureShareToken(table, id) {
   if (local) local.share_token = token;
   return token;
 }
+function oppnaFakturaForAvtal(avtalId) {
+  const av = avtalList2.find(x => x.id === avtalId);
+  if (!av) return;
+  // Navigera till fakturatabben
+  const affPage = document.querySelector('[onclick*="affarer"]');
+  showPage('affarer', affPage);
+  showAffSub('faktura', document.getElementById('affBtn-faktura'));
+  // Sök på uthyrarens namn (det är dem vi fakturerar)
+  const sokvard = av.uthyrare_foretag || av.foretag || '';
+  setTimeout(() => {
+    const inp = document.getElementById('fakturaSearchInput');
+    if (inp && sokvard) {
+      inp.value = sokvard;
+      inp.dispatchEvent(new Event('input'));
+    }
+    renderFakturaList();
+  }, 100);
+}
+
 function mailKopiaFranAvtal(avtalId) {
   const fakturor = fakturorList.filter(f => f.avtal_id === avtalId);
   if (!fakturor.length) { showToast('⚠️ Ingen faktura finns på detta avtal'); return; }
@@ -5627,8 +5659,12 @@ async function fortnoxCreateFaktura(fakturaId) {
     const data = await resp.json();
     const fnr = data?.Invoice?.DocumentNumber;
     if (fnr) {
-      await getSB().from('fakturor').update({ fortnox_nr: String(fnr) }).eq('id', fakturaId);
+      const today = new Date().toISOString().slice(0,10);
+      const updateData = { fortnox_nr: String(fnr) };
+      if (!f.faktura_skickad) updateData.faktura_skickad = today;
+      await getSB().from('fakturor').update(updateData).eq('id', fakturaId);
       f.fortnox_nr = String(fnr);
+      if (!f.faktura_skickad) f.faktura_skickad = today;
       renderFakturaList();
       if (f.avtal_id) {
         showToast('⏳ Bifogar avtal till Fortnox...');
