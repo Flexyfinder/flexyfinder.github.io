@@ -929,6 +929,7 @@
       </div>
       <div style="display:flex;gap:8px;align-items:center">
         <button class="btn btn-ghost btn-sm" onclick="exportFakturorCSV()" style="font-size:12px">⬇ Exportera CSV</button>
+        <button id="fnSyncBtn" onclick="fortnoxSyncStatus()" style="display:none;font-size:12px;padding:5px 12px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:7px;cursor:pointer;font-family:'DM Mono',monospace">🔄 Synka Fortnox</button>
         <div style="display:flex;border:1px solid var(--border);border-radius:7px;overflow:hidden">
           <button id="fvBtn-grupp" onclick="setFakturaView('grupp')" style="padding:5px 12px;font-size:11px;font-family:'DM Mono',monospace;border:none;cursor:pointer;background:var(--accent);color:#fff" title="Grupperad per uppdrag">📦 Grupp</button>
           <button id="fvBtn-tabell" onclick="setFakturaView('tabell')" style="padding:5px 12px;font-size:11px;font-family:'DM Mono',monospace;border:none;cursor:pointer;background:var(--surface2);color:var(--muted2)" title="Kompakt tabellvy">☰ Tabell</button>
@@ -3713,7 +3714,7 @@ function renderFakturaList() {
         </tr></thead>
         <tbody>${rows.map(f => {
           const av = avtalList2.find(x=>x.id===f.avtal_id);
-          const foretag = av?.inhyrare_foretag || f.foretag || '–';
+          const foretag = av?.uthyrare_foretag || f.foretag || '–';
           const st = getStatus(f);
           const belopp = parseFloat(f.belopp_uthyrare)||0;
           const isKredit = belopp < 0;
@@ -5620,6 +5621,8 @@ function updateFortnoxStatus() {
   if (lbl) lbl.textContent = FORTNOX_TEST_MODE ? '🧪 Testläge' : '🏢 Produktion';
   const btn = document.getElementById('fortnoxConnectBtn');
   if (btn) btn.textContent = FORTNOX_REFRESH_TOK ? '🔄 Återanslut Fortnox' : '🔌 Anslut Fortnox';
+  const syncBtn = document.getElementById('fnSyncBtn');
+  if (syncBtn) syncBtn.style.display = FORTNOX_REFRESH_TOK ? '' : 'none';
 }
 
 // ─── INIT ───────────────────────────────────────────────
