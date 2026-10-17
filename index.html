@@ -5470,12 +5470,11 @@ async function fortnoxGetToken() {
   if (FORTNOX_ACCESS_TOK && Date.now() < FORTNOX_TOK_EXP - 60000) return FORTNOX_ACCESS_TOK;
   if (!FORTNOX_REFRESH_TOK) { showToast('⚠️ Fortnox ej ansluten — öppna inställningar → Anslut Fortnox'); return null; }
   if (!FORTNOX_SECRET) { showToast('⚠️ Client Secret saknas — ange i inställningar'); return null; }
-  const creds = btoa(FORTNOX_CLIENT_ID + ':' + FORTNOX_SECRET);
   try {
-    const resp = await fetch('https://apps.fortnox.se/oauth-v1/token', {
+    const resp = await fetch(SUPABASE_URL + '/functions/v1/fortnox-token', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Authorization': 'Basic ' + creds },
-      body: 'grant_type=refresh_token&refresh_token=' + encodeURIComponent(FORTNOX_REFRESH_TOK)
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY },
+      body: JSON.stringify({ grant_type: 'refresh_token', refresh_token: FORTNOX_REFRESH_TOK, client_id: FORTNOX_CLIENT_ID, client_secret: FORTNOX_SECRET })
     });
     if (!resp.ok) throw new Error(await resp.text());
     const data = await resp.json();
@@ -5493,12 +5492,11 @@ async function fortnoxGetToken() {
 
 async function fortnoxExchangeCode(code) {
   if (!FORTNOX_SECRET) { showToast('⚠️ Client Secret saknas — ange i inställningar'); return; }
-  const creds = btoa(FORTNOX_CLIENT_ID + ':' + FORTNOX_SECRET);
   try {
-    const resp = await fetch('https://apps.fortnox.se/oauth-v1/token', {
+    const resp = await fetch(SUPABASE_URL + '/functions/v1/fortnox-token', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Authorization': 'Basic ' + creds },
-      body: 'grant_type=authorization_code&code=' + encodeURIComponent(code) + '&redirect_uri=' + encodeURIComponent(FORTNOX_REDIRECT_URI)
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY },
+      body: JSON.stringify({ grant_type: 'authorization_code', code, client_id: FORTNOX_CLIENT_ID, client_secret: FORTNOX_SECRET, redirect_uri: FORTNOX_REDIRECT_URI })
     });
     if (!resp.ok) throw new Error(await resp.text());
     const data = await resp.json();
