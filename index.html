@@ -3615,7 +3615,6 @@ function checkFaktureringsVarningar() {
           <span style="display:flex;align-items:center;gap:10px">
             <span style="color:#ef4444">Slutade ${a.period_end} · för ${daysPast} dag${daysPast!==1?'ar':''} sedan</span>
             <button onclick="goToAvtal('${a.id}')" style="font-size:10px;padding:3px 10px;background:var(--accent);color:#fff;border:none;border-radius:5px;cursor:pointer;font-weight:700;white-space:nowrap">→ Öppna avtal</button>
-            <button onclick="goToFaktura('${a.id}')" style="font-size:10px;padding:3px 10px;background:#f97316;color:#fff;border:none;border-radius:5px;cursor:pointer;font-weight:700;white-space:nowrap">→ Fakturera</button>
             <button class="btn btn-ghost btn-sm" onclick="quickSetStatus('${a.id}','Avslutat')" style="font-size:10px;color:#22c55e;border-color:#22c55e">✓ Markera avslutat</button>
           </span>
         </div>`;
