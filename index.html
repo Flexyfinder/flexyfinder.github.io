@@ -4609,8 +4609,8 @@ ${mottagare === 'kund' ? `
     <tr><td class="label">Timpris exkl. moms</td><td class="val">${fkr(tpris)}/h</td></tr>
     <tr><td class="label">Faktureringsmodell</td><td class="val">${f(a.faktureringsmodell)}</td></tr>
     <tr><td class="label">Uppdragsbelopp exkl. moms</td><td class="val">${fkr(uppdr)}</td></tr>
-    <tr><td class="label">Moms 25%</td><td class="val">${fkr(kundMoms)}</td></tr>
-    <tr><td class="label" style="font-weight:700">Totalt inkl. moms</td><td class="val" style="font-weight:700">${fkr(uppdr+kundMoms)}</td></tr>
+    <tr><td class="label">Moms</td><td class="val" style="color:#b45309;font-weight:600">Omvänd betalningsskyldighet för byggmoms — 0 kr faktureras</td></tr>
+    <tr><td class="label" style="font-weight:700">Totalt att betala</td><td class="val" style="font-weight:700">${fkr(uppdr)}</td></tr>
   </tbody>
 </table>` : `
 <table class="spec">
@@ -4619,18 +4619,18 @@ ${mottagare === 'kund' ? `
     <tr><td class="label">Timpris (fakturerat av leverantören)</td><td class="val">${fkr(tpris)}/h</td></tr>
     <tr><td class="label">Faktureringsmodell</td><td class="val">${f(a.faktureringsmodell)}</td></tr>
     <tr><td class="label">Uppdragsbelopp exkl. moms</td><td class="val">${fkr(uppdr)}</td></tr>
+    <tr><td class="label">Moms på uppdrag</td><td class="val" style="color:#b45309;font-weight:600">Omvänd betalningsskyldighet för byggmoms — 0 kr faktureras</td></tr>
     <tr><td class="label">Flexyfinder-avgift (${ffPct}%) exkl. moms</td><td class="val">${fkr(avgift)}</td></tr>
     <tr><td class="label">Moms 25% på FF-avgift</td><td class="val">${fkr(ffMoms)}</td></tr>
     <tr><td class="label">FF-avgift inkl. moms</td><td class="val">${fkr(avgift+ffMoms)}</td></tr>
     <tr><td class="label" style="font-weight:700">Till leverantören exkl. moms</td><td class="val" style="font-weight:700">${fkr(tillUth)}</td></tr>
   </tbody>
 </table>`}
-<p style="font-size:8.5pt;color:#666;margin-top:16px;font-family:Arial,sans-serif">
-  ${mottagare === 'kund'
-    ? 'Leverantören fakturerar Kunden enligt ovan angivna belopp. Denna bilaga är en integrerad del av Uppdragsavtalet och har samma juridiska verkan.'
-    : 'Leverantören fakturerar Kunden för hela uppdragsbeloppet. Flexyfinder-avgiften dras av och resterande belopp tillfaller Leverantören. Denna bilaga är en integrerad del av Uppdragsavtalet och har samma juridiska verkan.'
-  }
-</p>
+<div style="margin-top:16px;padding:10px 14px;background:#fef3c7;border:1px solid #f59e0b;border-radius:6px;font-family:Arial,sans-serif;font-size:8.5pt;color:#78350f">
+  <strong>⚠️ Omvänd betalningsskyldighet för byggmoms tillämpas (6 kap. 7 § mervärdesskattelagen)</strong><br>
+  Leverantören fakturerar utan moms. Köparen (inhyraren) är skattskyldig och ansvarar för att redovisa och betala momsen till Skatteverket.<br>
+  Denna bilaga är en integrerad del av Uppdragsavtalet och har samma juridiska verkan.
+</div>
 </body></html>`;
 
   const w = window.open('', '_blank');
