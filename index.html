@@ -929,6 +929,7 @@
       </div>
       <button class="btn btn-ghost btn-sm" onclick="exportFakturorCSV()" style="font-size:12px">⬇ Exportera CSV</button>
     </div>
+    <div id="faktureringsNotis"></div>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px" id="fakturaKpi"></div>
     <div id="manadsoversikt" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px"></div>
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px">
@@ -3492,10 +3493,126 @@ function exportFakturorCSV() {
   a.click(); URL.revokeObjectURL(url);
 }
 
+// ─── FAKTURERINGSNOTIS ────────────────────────────────────
+function isoWeekKey(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const day = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const wk = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+  return d.getUTCFullYear() + '-W' + String(wk).padStart(2, '0');
+}
+function countWorkdays(from, to) {
+  let n = 0;
+  const d = new Date(from);
+  while (d <= to) { const dw = d.getDay(); if (dw >= 1 && dw <= 5 && !isRedDay(d)) n++; d.setDate(d.getDate() + 1); }
+  return n;
+}
+function renderFaktureringsNotis() {
+  const el = document.getElementById('faktureringsNotis');
+  if (!el) return;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const todayStr = today.toISOString().slice(0, 10);
+  const items = [];
+  for (const a of avtalList2) {
+    if (!a.period_start || !a.period_end || !a.timpris) continue;
+    if (a.status === 'Avslutat') continue;
+    const periodStart = new Date(a.period_start);
+    const periodEnd   = new Date(a.period_end);
+    const persons     = parseInt(a.antal_personer) || 1;
+    const totHours    = parseFloat(a.timmar_totalt) || 0;
+    const timpris     = parseFloat(a.timpris) || 0;
+    const pct         = parseFloat(a.ff_avgift_procent) || 8.5;
+    const totalAvgift = Math.max(Math.round(persons * totHours * timpris * (pct / 100)), 995);
+    const totalWD     = countWorkdays(periodStart, periodEnd);
+    const faks        = fakturorList.filter(f => f.avtal_id === a.id);
+    if (a.faktureringsmodell === 'Veckovis') {
+      // Hitta måndag för periodens första vecka
+      const startMon = new Date(periodStart);
+      const startDow = startMon.getDay() || 7;
+      startMon.setDate(startMon.getDate() - (startDow - 1));
+      const cur = new Date(startMon);
+      while (cur <= periodEnd) {
+        const fri = new Date(cur); fri.setDate(fri.getDate() + 4);
+        const weekEndInPeriod = fri > periodEnd ? new Date(periodEnd) : new Date(fri);
+        if (weekEndInPeriod <= today) {
+          const wk = isoWeekKey(cur);
+          const weekStart = cur < periodStart ? new Date(periodStart) : new Date(cur);
+          const weekEnd   = fri > periodEnd   ? new Date(periodEnd)   : new Date(fri);
+          const weekWD = countWorkdays(weekStart, weekEnd);
+          if (weekWD > 0) {
+            const already = faks.some(f => f.period_start && isoWeekKey(new Date(f.period_start)) === wk);
+            if (!already) {
+              const weekBelopp = totalWD > 0 ? Math.round(totalAvgift * weekWD / totalWD) : 0;
+              items.push({
+                avtalId: a.id,
+                label: `${a.inhyrare_foretag || '–'} → ${a.uthyrare_foretag || '–'}`,
+                matchId: a.match_id,
+                ps: weekStart.toISOString().slice(0, 10),
+                pe: weekEnd.toISOString().slice(0, 10),
+                belopp: weekBelopp,
+                tag: 'Vecka ' + parseInt(wk.split('-W')[1])
+              });
+            }
+          }
+        }
+        cur.setDate(cur.getDate() + 7);
+      }
+    } else if (a.faktureringsmodell === 'Vid uppdragets slut') {
+      if (a.period_end <= todayStr && faks.length === 0) {
+        items.push({
+          avtalId: a.id,
+          label: `${a.inhyrare_foretag || '–'} → ${a.uthyrare_foretag || '–'}`,
+          matchId: a.match_id,
+          ps: a.period_start, pe: a.period_end,
+          belopp: totalAvgift,
+          tag: 'Vid uppdragets slut'
+        });
+      }
+    }
+  }
+  if (!items.length) { el.innerHTML = ''; return; }
+  let html = `<div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.3);border-radius:10px;padding:16px;margin-bottom:16px;font-family:'DM Mono',monospace;font-size:12px">
+    <div style="color:var(--accent);font-weight:700;font-size:13px;margin-bottom:10px">🔔 Ska faktureras — ${items.length} st</div>`;
+  for (const r of items) {
+    html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid rgba(99,102,241,0.15)">
+      <div>
+        <span style="font-weight:600">${r.label}</span>${r.matchId ? ` <span style="color:var(--muted)">(${r.matchId})</span>` : ''}
+        <div style="color:var(--muted);font-size:11px;margin-top:2px">${r.ps} → ${r.pe} · <span style="color:#818cf8">${r.tag}</span></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <span style="color:var(--orange);font-weight:700">${r.belopp.toLocaleString('sv-SE')} kr</span>
+        <button onclick="genFakturaFranNotis('${r.avtalId}','${r.ps}','${r.pe}',${r.belopp})" style="padding:4px 14px;background:var(--accent);color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;font-family:'DM Mono',monospace">Generera</button>
+      </div>
+    </div>`;
+  }
+  el.innerHTML = html + '</div>';
+}
+async function genFakturaFranNotis(avtalId, ps, pe, belopp) {
+  const a = avtalList2.find(x => x.id === avtalId);
+  if (!a) return;
+  const row = {
+    id: genId(), avtal_id: avtalId,
+    foretag: a.uthyrare_foretag || a.foretag,
+    period_start: ps, period_end: pe,
+    belopp_uthyrare: belopp,
+    faktura_nr: nextFakturaNr(),
+    created_at: Date.now()
+  };
+  fakturorList.unshift(row);
+  try {
+    await sbSaveFaktura(row);
+    renderFakturaList();
+    showAffSub('faktura', document.getElementById('affBtn-faktura'));
+    showToast('✓ Faktura skapad — granska och skicka');
+  } catch(e) { fakturorList.shift(); showToast('Fel: ' + e.message); }
+}
+
 function renderFakturaList() {
   const kpiEl = document.getElementById('fakturaKpi');
   const listEl = document.getElementById('fakturaList');
   if (!kpiEl || !listEl) return;
+  renderFaktureringsNotis();
   const totalt = fakturorList.reduce((s,f) => s+(parseFloat(f.belopp_uthyrare)||0), 0);
   const skickat = fakturorList.filter(f=>f.faktura_skickad).reduce((s,f) => s+(parseFloat(f.belopp_uthyrare)||0), 0);
   const betalt = fakturorList.filter(f=>f.faktura_betald).reduce((s,f) => s+(parseFloat(f.belopp_uthyrare)||0), 0);
