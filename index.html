@@ -4519,7 +4519,7 @@ lars@flexyfinder.com`);
   showToast('📧 Uthyrarmailet öppnas — klicka bannern nedan för inhyraren');
 }
 
-function generateAvtal(id, mottagare) {
+function generateAvtalStr(id, mottagare) {
   const a = avtalList2.find(x => x.id === id);
   if (!a) { showToast('Avtal ej hittat'); return; }
   if (!mottagare) { mottagare = 'kund'; }
@@ -4748,6 +4748,11 @@ ${mottagare === 'kund' ? `
 </div>
 </body></html>`;
 
+  return html;
+}
+function generateAvtal(id, mottagare) {
+  const html = generateAvtalStr(id, mottagare);
+  if (!html) { showToast('Avtal ej hittat'); return; }
   const w = window.open('', '_blank');
   if (!w) { showToast('Popup blockerad — tillåt popups för den här sidan'); return; }
   w.document.write(html);
@@ -5351,6 +5356,64 @@ function saveFortnoxAndConnect() {
   fortnoxConnect();
 }
 
+function loadScriptOnce(src, globalName) {
+  return new Promise((resolve, reject) => {
+    if (globalName && window[globalName]) { resolve(); return; }
+    const ex = document.querySelector(`script[src="${src}"]`);
+    if (ex) { ex.addEventListener('load', resolve); ex.addEventListener('error', reject); return; }
+    const s = document.createElement('script');
+    s.src = src; s.onload = resolve;
+    s.onerror = () => reject(new Error('Laddningsfel: ' + src));
+    document.head.appendChild(s);
+  });
+}
+
+async function generateAvtalPdfBlob(avtalId, mottagare) {
+  await loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js', 'html2canvas');
+  await loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', 'jspdf');
+  const htmlStr = generateAvtalStr(avtalId, mottagare || 'uthyrare');
+  if (!htmlStr) throw new Error('Avtal ej hittat');
+  return new Promise((resolve, reject) => {
+    const iframe = document.createElement('iframe');
+    iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:794px;height:1200px;border:none;visibility:hidden';
+    document.body.appendChild(iframe);
+    iframe.onload = async () => {
+      try {
+        iframe.contentDocument.querySelectorAll('.no-print').forEach(el => el.remove());
+        const canvas = await html2canvas(iframe.contentDocument.body, { scale: 1.5, useCORS: true, backgroundColor: '#ffffff', width: 794 });
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+        const pw = pdf.internal.pageSize.getWidth();
+        const ph = pdf.internal.pageSize.getHeight();
+        const ih = (canvas.height * pw) / canvas.width;
+        const imgData = canvas.toDataURL('image/jpeg', 0.9);
+        let y = 0;
+        while (y < ih) { if (y > 0) pdf.addPage(); pdf.addImage(imgData, 'JPEG', 0, -y, pw, ih); y += ph; }
+        document.body.removeChild(iframe);
+        resolve(pdf.output('blob'));
+      } catch(e) { if (iframe.parentNode) document.body.removeChild(iframe); reject(e); }
+    };
+    iframe.srcdoc = htmlStr;
+  });
+}
+
+async function fortnoxAttachAvtalPdf(token, invoiceNr, avtalId) {
+  const a = avtalList2.find(x => x.id === avtalId);
+  const filename = 'avtal-' + (a?.match_id || avtalId.slice(0,8)) + '.pdf';
+  const pdfBlob = await generateAvtalPdfBlob(avtalId, 'uthyrare');
+  const form = new FormData();
+  form.append('file', pdfBlob, filename);
+  const resp = await fetch(`https://api.fortnox.se/3/invoices/${invoiceNr}/attachments`, {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + token },
+    body: form
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err?.ErrorInformation?.message || 'HTTP ' + resp.status);
+  }
+}
+
 async function fortnoxCreateFaktura(fakturaId) {
   const f = fakturorList.find(x => x.id === fakturaId);
   if (!f) return;
@@ -5380,7 +5443,17 @@ async function fortnoxCreateFaktura(fakturaId) {
       await getSB().from('fakturor').update({ fortnox_nr: String(fnr) }).eq('id', fakturaId);
       f.fortnox_nr = String(fnr);
       renderFakturaList();
-      showToast('✅ Faktura skapad i Fortnox! Nr: ' + fnr);
+      if (f.avtal_id) {
+        showToast('⏳ Bifogar avtal till Fortnox...');
+        try {
+          await fortnoxAttachAvtalPdf(token, fnr, f.avtal_id);
+          showToast('✅ Faktura + avtal bifogat i Fortnox! Nr: ' + fnr);
+        } catch(e2) {
+          showToast('✅ Faktura skapad i Fortnox! Nr: ' + fnr + ' — ⚠️ Avtal ej bifogat: ' + e2.message);
+        }
+      } else {
+        showToast('✅ Faktura skapad i Fortnox! Nr: ' + fnr);
+      }
     }
   } catch(e) { showToast('❌ Fortnox-fel: ' + e.message); }
 }
