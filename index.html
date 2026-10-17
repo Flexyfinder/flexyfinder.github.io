@@ -3378,7 +3378,7 @@ function renderAvtalCards() {
             </div>
           </div>
           <div style="display:flex;gap:4px;align-self:flex-end;padding-bottom:0">
-            <button class="btn btn-ghost btn-sm" onclick="createAndPreviewFaktura('${a.id}','${inhForetag.replace(/'/g,'')}')" style="font-size:10px">+ Faktura</button>
+            <button class="btn btn-ghost btn-sm" onclick="mailKopiaFranAvtal('${a.id}')" style="font-size:10px;color:#0369a1;border-color:#bae6fd" title="Skicka kopia av avtal + faktura via mail">📧 Skicka kopia</button>
             <button class="btn btn-ghost btn-sm" onclick="openAvtalModal('${a.id}')" style="font-size:10px">✏ Redigera</button>
             ${a.status !== 'Avslutat'
               ? `<button class="btn btn-ghost btn-sm" onclick="avslutaAvtal('${a.id}')" style="font-size:10px;color:var(--muted)" title="Markera som avslutat — flyttas till arkivet">📁 Avsluta</button>`
@@ -4584,6 +4584,14 @@ async function ensureShareToken(table, id) {
   if (local) local.share_token = token;
   return token;
 }
+function mailKopiaFranAvtal(avtalId) {
+  const fakturor = fakturorList.filter(f => f.avtal_id === avtalId);
+  if (!fakturor.length) { showToast('⚠️ Ingen faktura finns på detta avtal'); return; }
+  // Välj senaste faktura (sortera på skapad_datum eller id)
+  const senaste = fakturor.sort((a,b) => (b.skapad_datum||b.id).localeCompare(a.skapad_datum||a.id))[0];
+  mailAvtalOchFaktura(senaste.id);
+}
+
 async function mailAvtalOchFaktura(fakturaId) {
   const f = fakturorList.find(x => x.id === fakturaId);
   if (!f) return;
