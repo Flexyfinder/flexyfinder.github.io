@@ -3423,7 +3423,14 @@ function renderAvtalCards() {
         </div>
       </div>`:''}
       ${a.anteckning?`<div style="padding:8px 10px;background:rgba(99,102,241,0.07);border:1px solid rgba(99,102,241,0.2);border-radius:6px;font-size:12px;color:var(--muted2);margin-bottom:8px;white-space:pre-wrap">📝 ${a.anteckning}</div>`:''}
-      ${a.opened_at?`<div style="font-family:'DM Mono',monospace;font-size:10px;color:#818cf8;margin-bottom:6px" title="Mottagaren öppnade avtalet ${new Date(a.opened_at).toLocaleString('sv-SE')}">👁 Avtal öppnat av mottagare: ${new Date(a.opened_at).toLocaleString('sv-SE',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}</div>`:''}
+      <div style="font-family:'DM Mono',monospace;font-size:10px;margin-bottom:6px;display:flex;gap:8px;flex-wrap:wrap">
+        <span style="padding:2px 7px;border-radius:4px;background:${a.opened_at?'rgba(129,140,248,0.12)':a.skickat_uthyrare?'rgba(249,115,22,0.1)':'rgba(156,163,175,0.1)'};color:${a.opened_at?'#818cf8':a.skickat_uthyrare?'#f97316':'#9ca3af'};border:1px solid ${a.opened_at?'rgba(129,140,248,0.3)':a.skickat_uthyrare?'rgba(249,115,22,0.3)':'rgba(156,163,175,0.2)'}">
+          ${a.opened_at?`👁 Uthyrare öppnat ${new Date(a.opened_at).toLocaleDateString('sv-SE',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}`:a.skickat_uthyrare?`📨 Uthyrare skickat ${a.skickat_uthyrare}`:'⬜ Uthyrare ej skickat'}
+        </span>
+        <span style="padding:2px 7px;border-radius:4px;background:${a.skickat_kund?'rgba(249,115,22,0.1)':'rgba(156,163,175,0.1)'};color:${a.skickat_kund?'#f97316':'#9ca3af'};border:1px solid ${a.skickat_kund?'rgba(249,115,22,0.3)':'rgba(156,163,175,0.2)'}">
+          ${a.skickat_kund?`📨 Inhyrare skickat ${a.skickat_kund}`:'⬜ Inhyrare ej skickat'}
+        </span>
+      </div>
       ${faks.length?`<div style="padding-top:8px;border-top:1px solid var(--border);font-family:'DM Mono',monospace;font-size:11px;color:var(--muted2);display:flex;gap:14px;flex-wrap:wrap">
         <span>📋 ${faks.length} faktura${faks.length>1?'r':''}</span>
         <span>FF-avgift: <strong style="color:var(--orange)">${Math.round(ffFakturerat).toLocaleString('sv-SE')} kr</strong></span>
@@ -4354,9 +4361,78 @@ async function saveAvtal() {
     document.getElementById('aEditId').value = id;
     document.getElementById('aGenFakBtn').style.display = '';
     document.getElementById('aDeleteBtn').style.display = '';
+    closeModal('avtalModal');
     renderAvtalCards();
     showToast('✓ Match sparad');
+    // Nytt avtal → visa popup för att skicka avtal till parterna
+    if (!existing) visaSkickaAvtalPopup(id);
   } catch(e) { showToast('Fel: '+e.message); }
+}
+
+// ─── POPUP: SKICKA AVTAL TILL BÅDA PARTER EFTER NY MATCH ─
+async function visaSkickaAvtalPopup(avtalId) {
+  const a = avtalList2.find(x => x.id === avtalId);
+  if (!a) return;
+  const avToken = await ensureShareToken('avtal', avtalId);
+  if (!avToken) return;
+  const avtalNr = a.match_id || (a.avtal_nummer ? 'AV-'+a.avtal_nummer : '');
+  const avLinkUth = `${FLEXYFINDER_PAGES_URL}/avtal.html?nr=${encodeURIComponent(avtalNr)}&t=${avToken}&mottagare=uthyrare`;
+  const avLinkInh = `${FLEXYFINDER_PAGES_URL}/avtal.html?nr=${encodeURIComponent(avtalNr)}&t=${avToken}&mottagare=inhyrare`;
+  const motUth = a.uthyrare_epost || a.uthyrare_faktura_epost || '';
+  const motInh = a.inhyrare_epost || '';
+  const period = [a.period_start, a.period_end].filter(Boolean).join(' – ') || '–';
+  const today = new Date().toISOString().slice(0,10);
+
+  const mailUth = motUth ? (() => {
+    const subj = encodeURIComponent(`Uppdragsavtal ${avtalNr} – FlexyFinder AB`);
+    const body = encodeURIComponent(`Hej ${a.uthyrare_kontakt||''},\n\nBifogat finner ni ert uppdragsavtal via FlexyFinder.\n\nUppdrag: ${a.yrkesroll||''}${a.resurs?' – '+a.resurs:''}\nPeriod: ${period}\nAvtalsnummer: ${avtalNr}\n\n🔗 Öppna avtalet online:\n${avLinkUth}\n\nMed vänliga hälsningar,\nFlexyFinder AB\nlars@flexyfinder.com`);
+    return `mailto:${encodeURIComponent(motUth)}?subject=${subj}&body=${body}`;
+  })() : null;
+  const mailInh = motInh ? (() => {
+    const subj = encodeURIComponent(`Uppdragsavtal ${avtalNr} – FlexyFinder AB`);
+    const body = encodeURIComponent(`Hej ${a.inhyrare_kontakt||''},\n\nBifogat finner ni ert uppdragsavtal via FlexyFinder.\n\nUppdrag: ${a.yrkesroll||''}${a.resurs?' – '+a.resurs:''}\nPeriod: ${period}\nAvtalsnummer: ${avtalNr}\n\n🔗 Öppna avtalet online:\n${avLinkInh}\n\nMed vänliga hälsningar,\nFlexyFinder AB\nlars@flexyfinder.com`);
+    return `mailto:${encodeURIComponent(motInh)}?subject=${subj}&body=${body}`;
+  })() : null;
+
+  async function markSkickat(part) {
+    const upd = {};
+    if (part === 'uth') upd.skickat_uthyrare = today;
+    if (part === 'inh') upd.skickat_kund = today;
+    await getSB().from('avtal').update(upd).eq('id', avtalId);
+    if (part === 'uth') a.skickat_uthyrare = today;
+    if (part === 'inh') a.skickat_kund = today;
+    renderAvtalCards();
+  }
+  window._markSkickatCallback = markSkickat;
+
+  document.getElementById('skickaAvtalBanner')?.remove();
+  const banner = document.createElement('div');
+  banner.id = 'skickaAvtalBanner';
+  banner.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:9999;background:#0f172a;color:#fff;border-top:3px solid #6366f1;padding:16px 24px;box-shadow:0 -8px 32px rgba(0,0,0,0.6);font-family:\'Syne\',sans-serif;';
+  banner.innerHTML = `
+    <div style="max-width:960px;margin:0 auto;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="font-size:11px;color:#94a3b8;font-family:'DM Mono',monospace;letter-spacing:1.5px;text-transform:uppercase">📋 Match sparad — Skicka avtal till parterna</div>
+        <span onclick="document.getElementById('skickaAvtalBanner')?.remove()" style="cursor:pointer;color:#64748b;font-size:26px;line-height:1;padding:0 4px;font-weight:300">×</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <!-- UTHYRARE -->
+        <div style="background:#1e293b;border-radius:10px;padding:14px 16px;border:1px solid #334155">
+          <div style="font-size:9px;color:#818cf8;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">UTHYRARE — Får avtal + kontaktuppgifter</div>
+          <div style="font-size:15px;font-weight:700;color:#f1f5f9;margin-bottom:2px">${a.uthyrare_foretag||'–'}</div>
+          <div style="font-size:11px;color:#94a3b8;margin-bottom:10px">${motUth||'<span style="color:#ef4444">⚠️ Ingen e-post angiven</span>'}</div>
+          ${mailUth ? `<a href="${mailUth}" onclick="window._markSkickatCallback('uth')" style="background:#6366f1;color:#fff;padding:10px 16px;border-radius:7px;text-decoration:none;font-weight:700;font-size:13px;display:block;text-align:center">📧 Skicka avtal till uthyrare</a>` : `<div style="color:#ef4444;font-size:12px;padding:10px 0">Saknar e-postadress</div>`}
+        </div>
+        <!-- INHYRARE -->
+        <div style="background:#1e293b;border-radius:10px;padding:14px 16px;border:1px solid #334155">
+          <div style="font-size:9px;color:#f97316;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">INHYRARE — Får avtal</div>
+          <div style="font-size:15px;font-weight:700;color:#f1f5f9;margin-bottom:2px">${a.inhyrare_foretag||a.foretag||'–'}</div>
+          <div style="font-size:11px;color:#94a3b8;margin-bottom:10px">${motInh||'<span style="color:#ef4444">⚠️ Ingen e-post angiven</span>'}</div>
+          ${mailInh ? `<a href="${mailInh}" onclick="window._markSkickatCallback('inh')" style="background:#f97316;color:#fff;padding:10px 16px;border-radius:7px;text-decoration:none;font-weight:700;font-size:13px;display:block;text-align:center">📧 Skicka avtal till inhyrare</a>` : `<div style="color:#ef4444;font-size:12px;padding:10px 0">Saknar e-postadress</div>`}
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(banner);
 }
 
 async function markAvtalSkickat(id) {
