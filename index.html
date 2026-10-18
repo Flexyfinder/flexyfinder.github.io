@@ -4486,16 +4486,33 @@ async function visaSkickaAvtalPopup(avtalId) {
         <div style="font-size:11px;color:#94a3b8;font-family:'DM Mono',monospace;letter-spacing:1.5px;text-transform:uppercase">📋 Match sparad — Granska och skicka avtal</div>
         <span onclick="document.getElementById('skickaAvtalBanner')?.remove()" style="cursor:pointer;color:#64748b;font-size:26px;line-height:1;padding:0 4px;font-weight:300">×</span>
       </div>
-      <!-- GRANSKNING -->
-      <div style="background:#1e293b;border-radius:10px;padding:14px 18px;border:1px solid #334155;display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:center">
-        <button onclick="generateAvtal('${avtalId}','uthyrare')" style="background:#334155;color:#e2e8f0;padding:10px 14px;border-radius:7px;border:none;font-weight:700;font-size:12px;cursor:pointer;white-space:nowrap;flex-shrink:0">📄 Granska avtal</button>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px 20px">
-          <div><span style="font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:.5px">Uppdrag</span><br><span style="font-size:13px;color:#f1f5f9">${[a.yrkesroll,a.resurs].filter(Boolean).join(' – ')||'–'}</span></div>
-          <div><span style="font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:.5px">Period</span><br><span style="font-size:13px;color:#f1f5f9">${period}</span></div>
-          <div><span style="font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:.5px">Parter</span><br><span style="font-size:13px;color:#f1f5f9">${a.uthyrare_foretag||'–'} → ${a.inhyrare_foretag||a.foretag||'–'}</span></div>
-          ${_avgift ? `<div><span style="font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:.5px">FF-avgift (${_pct}%)</span><br><span style="font-size:13px;color:#f1f5f9">${fmt(_avgift)} exkl moms</span></div>
-          <div><span style="font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:.5px">Moms 25%</span><br><span style="font-size:13px;color:#f1f5f9">${fmt(_moms)}</span></div>
-          <div><span style="font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:.5px">Totalt inkl moms</span><br><span style="font-size:14px;font-weight:700;color:#f97316">${fmt(_inkl)}</span></div>` : ''}
+      <!-- SPLIT SCREEN: AVTALSDETALJER + UTRÄKNING -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <!-- VÄNSTER: AVTALSDETALJER -->
+        <div style="background:#1e293b;border-radius:10px;padding:14px 18px;border:1px solid #334155">
+          <div style="font-size:9px;color:#94a3b8;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">📋 Avtalsdetaljer</div>
+          <div style="display:grid;gap:7px">
+            <div><span style="font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:.5px">Uppdrag</span><br><span style="font-size:13px;color:#f1f5f9;font-weight:600">${[a.yrkesroll,a.resurs].filter(Boolean).join(' – ')||'–'}</span></div>
+            <div><span style="font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:.5px">Period</span><br><span style="font-size:13px;color:#f1f5f9">${period}</span></div>
+            <div><span style="font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:.5px">Uthyrare → Inhyrare</span><br><span style="font-size:13px;color:#f1f5f9">${a.uthyrare_foretag||'–'} → ${a.inhyrare_foretag||a.foretag||'–'}</span></div>
+            ${a.arbetstid ? `<div><span style="font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:.5px">Arbetstid</span><br><span style="font-size:13px;color:#f1f5f9">${a.arbetstid}</span></div>` : ''}
+            ${parseInt(a.antal_personer||1) > 1 ? `<div><span style="font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:.5px">Antal personer</span><br><span style="font-size:13px;color:#f1f5f9">${a.antal_personer}</span></div>` : ''}
+          </div>
+          <button onclick="generateAvtal('${avtalId}','uthyrare')" style="background:#334155;color:#e2e8f0;padding:8px 12px;border-radius:6px;border:none;font-weight:700;font-size:11px;cursor:pointer;margin-top:12px;width:100%">📄 Öppna avtal i ny flik</button>
+        </div>
+        <!-- HÖGER: UTRÄKNING -->
+        <div style="background:#1e293b;border-radius:10px;padding:14px 18px;border:1px solid #334155">
+          <div style="font-size:9px;color:#94a3b8;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">🧮 Uträkning</div>
+          ${_pris && _timmar ? `
+          <div style="display:grid;gap:7px">
+            <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:12px;color:#64748b">Timpris</span><span style="font-size:13px;color:#f1f5f9">${fmt(_pris)}/tim</span></div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:12px;color:#64748b">Timmar totalt</span><span style="font-size:13px;color:#f1f5f9">${_timmar} tim${_persons > 1 ? ' × '+_persons+' pers' : ''}</span></div>
+            <div style="height:1px;background:#334155;margin:2px 0"></div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:12px;color:#64748b">FF-avgift (${_pct}%)</span><span style="font-size:13px;color:#f1f5f9">${fmt(_avgift)} exkl moms</span></div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:12px;color:#64748b">Moms 25%</span><span style="font-size:13px;color:#f1f5f9">${fmt(_moms)}</span></div>
+            <div style="height:1px;background:#334155;margin:2px 0"></div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:12px;color:#64748b;font-weight:700">Totalt inkl moms</span><span style="font-size:16px;color:#f97316;font-weight:700">${fmt(_inkl)}</span></div>
+          </div>` : `<div style="color:#64748b;font-size:12px;padding-top:4px">Fyll i timpris och timmar totalt i avtalsformuläret för att se uträkning.</div>`}
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
