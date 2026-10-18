@@ -4310,6 +4310,7 @@ async function deleteAvtal(id) {
   const idx = avtalList2.findIndex(x => x.id === id);
   if (idx > -1) avtalList2.splice(idx, 1);
   renderAvtalCards();
+  checkFaktureringsVarningar();
 }
 
 async function saveAvtal() {
