@@ -2757,7 +2757,30 @@ function showToast(msg) {
   setTimeout(() => t.remove(), 3000);
 }
 
+function saveOtherSettings() {
+  const orgNrVal  = document.getElementById('setupOrgNr')?.value.trim();
+  const adressVal = document.getElementById('setupAdress')?.value.trim();
+  const telVal    = document.getElementById('setupTelefon')?.value.trim();
+  const bccVal    = document.getElementById('setupFortnoxBcc')?.value.trim();
+  const resendVal = document.getElementById('setupResendKey')?.value.trim();
+  if (orgNrVal)  { FF_ORG_NR   = orgNrVal;  localStorage.setItem('crm_ff_org_nr',   orgNrVal);  }
+  if (adressVal) { FF_ADRESS   = adressVal; localStorage.setItem('crm_ff_adress',   adressVal); }
+  if (telVal)    { FF_TELEFON  = telVal;    localStorage.setItem('crm_ff_telefon',  telVal);    }
+  if (bccVal)    { FORTNOX_BCC = bccVal;    localStorage.setItem('crm_fortnox_bcc', bccVal);    }
+  if (resendVal && resendVal !== '(sparad)') { RESEND_API_KEY = resendVal; localStorage.setItem('crm_resend_key', resendVal); }
+  showToast('✓ Inställningar sparade');
+  hideSetup();
+}
+
 function showSetup() {
+  // visa stäng-knapp om Supabase redan är ansluten
+  setTimeout(() => {
+    const closeBtn = document.getElementById('setupCloseBtn');
+    const saveBtn  = document.getElementById('saveOtherSettingsBtn');
+    const isConn   = !!(SUPABASE_URL && SUPABASE_KEY);
+    if (closeBtn) closeBtn.style.display = isConn ? 'block' : 'none';
+    if (saveBtn)  saveBtn.style.display  = isConn ? 'block' : 'none';
+  }, 10);
   // pre-fill current values
   setTimeout(() => {
     const s = document.getElementById('setupOrgNr');
@@ -6044,7 +6067,8 @@ document.addEventListener('DOMContentLoaded', init);
 
 <!-- SETUP OVERLAY -->
 <div id="setupOverlay" style="display:none;position:fixed;inset:0;background:rgba(244,246,250,0.97);z-index:200;align-items:flex-start;justify-content:center;overflow-y:auto;padding:20px 0">
-  <div style="width:500px;max-width:95vw;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:36px;box-shadow:0 30px 80px rgba(0,0,0,0.15);margin:auto">
+  <div style="width:500px;max-width:95vw;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:36px;box-shadow:0 30px 80px rgba(0,0,0,0.15);margin:auto;position:relative">
+    <button onclick="hideSetup()" id="setupCloseBtn" style="display:none;position:absolute;top:16px;right:16px;background:none;border:none;font-size:22px;cursor:pointer;color:var(--muted2);line-height:1" title="Stäng">×</button>
     <div style="font-size:24px;font-weight:800;margin-bottom:4px">Anslut till Supabase</div>
     <div style="font-family:'DM Mono',monospace;font-size:12px;color:var(--muted2);margin-bottom:28px">Dela CRM:et med hela teamet — gratis</div>
 
@@ -6114,6 +6138,7 @@ document.addEventListener('DOMContentLoaded', init);
         <button onclick="fortnoxSyncStatus()" style="font-size:12px;padding:8px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;cursor:pointer;width:100%">🔄 Synka betaldstatus nu</button>
       </div>
     </div>
+    <button id="saveOtherSettingsBtn" onclick="saveOtherSettings()" style="width:100%;padding:10px;font-size:13px;margin-top:8px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-weight:600;display:none">💾 Spara inställningar</button>
     <button class="btn btn-primary" id="connectBtn" onclick="connectSupabase()" style="width:100%;padding:12px;font-size:14px;margin-top:8px">Anslut till Supabase</button>
   </div>
 </div>
