@@ -4276,7 +4276,7 @@ async function avslutaAvtal(id) {
   if (!a) return;
   const label = a.match_id || (a.avtal_nummer ? `AV-${a.avtal_nummer}` : id);
   if (!confirm(`Markera ${label} som avslutat?\n\nAvtalet flyttas till arkivet och döljs från huvudvyn.`)) return;
-  const { error } = await window._sb.from('avtal').update({ status: 'Avslutat' }).eq('id', id);
+  const { error } = await getSB().from('avtal').update({ status: 'Avslutat' }).eq('id', id);
   if (error) { alert('Fel: ' + error.message); return; }
   a.status = 'Avslutat';
   renderAvtalCards();
@@ -4285,7 +4285,7 @@ async function avslutaAvtal(id) {
 async function aktiverAvtal(id) {
   const a = avtalList2.find(x => x.id === id);
   if (!a) return;
-  const { error } = await window._sb.from('avtal').update({ status: 'Aktiv' }).eq('id', id);
+  const { error } = await getSB().from('avtal').update({ status: 'Aktiv' }).eq('id', id);
   if (error) { alert('Fel: ' + error.message); return; }
   a.status = 'Aktiv';
   renderAvtalCards();
@@ -4301,11 +4301,11 @@ async function deleteAvtal(id) {
   if (!confirm(`Är du säker på att du vill radera avtal ${label} (${namn})?${extraText}\n\nDetta kan inte ångras.`)) return;
   // Radera kopplade fakturor först
   for (const f of linkedFak) {
-    await window._sb.from('fakturor').delete().eq('id', f.id);
+    await getSB().from('fakturor').delete().eq('id', f.id);
     const fi = fakturorList.findIndex(x => x.id === f.id);
     if (fi > -1) fakturorList.splice(fi, 1);
   }
-  const { error } = await window._sb.from('avtal').delete().eq('id', id);
+  const { error } = await getSB().from('avtal').delete().eq('id', id);
   if (error) { alert('Fel vid radering: ' + error.message); return; }
   const idx = avtalList2.findIndex(x => x.id === id);
   if (idx > -1) avtalList2.splice(idx, 1);
@@ -4557,7 +4557,7 @@ async function markAvtalSkickat(id) {
   } else {
     uthyrare = today;
   }
-  const { error } = await window._sb.from('avtal').update({ skickat_kund: kund, skickat_uthyrare: uthyrare }).eq('id', id);
+  const { error } = await getSB().from('avtal').update({ skickat_kund: kund, skickat_uthyrare: uthyrare }).eq('id', id);
   if (error) { alert('Fel: ' + error.message); return; }
   a.skickat_kund = kund;
   a.skickat_uthyrare = uthyrare;
