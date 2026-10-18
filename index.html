@@ -3742,37 +3742,90 @@ function renderFakturaList() {
     });
     // Tilldela färg per avtal-id (roterande palett)
     const avtalPalette = ['#6366f1','#0891b2','#16a34a','#d97706','#dc2626','#7c3aed','#0369a1','#15803d'];
-    const avtalColorMap = {};
-    let avtalColorIdx = 0;
-    kommande.forEach(k => { if (!avtalColorMap[k.avtal.id]) avtalColorMap[k.avtal.id] = avtalPalette[avtalColorIdx++ % avtalPalette.length]; });
-    // Sortera per avtal, sedan per fredag
-    kommande.sort((a,b) => a.avtal.id === b.avtal.id ? a.friday.localeCompare(b.friday) : a.friday.localeCompare(b.friday));
+    // Färg per uthyrare_foretag (inte per avtal) så att samma bolag alltid får samma färg
+    const uthyrareColorMap = {};
+    let uthyrareColorIdx = 0;
+    kommande.forEach(k => {
+      const uthKey = k.avtal.uthyrare_foretag || k.foretag || k.avtal.id;
+      if (!uthyrareColorMap[uthKey]) uthyrareColorMap[uthKey] = avtalPalette[uthyrareColorIdx++ % avtalPalette.length];
+    });
+    // Sortera: fredag → uthyrare_foretag → avtal (så samma bolag klustras per vecka)
+    kommande.sort((a,b) => {
+      const fridayCmp = a.friday.localeCompare(b.friday);
+      if (fridayCmp !== 0) return fridayCmp;
+      const aKey = a.avtal.uthyrare_foretag || a.foretag || '';
+      const bKey = b.avtal.uthyrare_foretag || b.foretag || '';
+      return aKey.localeCompare(bKey);
+    });
+    // Gruppera kommande per (friday + uthyrare_foretag) för att detektera samlingsfaktura
+    const kommGroups = {};
+    kommande.forEach(k => {
+      const uthKey = k.avtal.uthyrare_foretag || k.foretag || k.avtal.id;
+      const gKey = k.friday + '__' + uthKey;
+      if (!kommGroups[gKey]) kommGroups[gKey] = { friday: k.friday, uthyrare: uthKey, color: uthyrareColorMap[uthKey], items: [] };
+      kommGroups[gKey].items.push(k);
+    });
     const kommHtml = kommande.length ? `
       <tr><td colspan="9" style="padding:5px 10px;background:#eef2ff;font-size:10px;font-weight:700;color:#4f46e5;letter-spacing:.6px;text-transform:uppercase;border-bottom:1px solid #c7d2fe">📅 Kommande fakturor — ${kommande.length} st</td></tr>
-      ${kommande.map(k => {
-        const ac = avtalColorMap[k.avtal.id];
-        const av = k.avtal;
-        // Estimerat belopp per vecka
-        const timmar = parseFloat(av.timmar_totalt)||0;
-        const timpris = parseFloat(av.timpris)||0;
-        const pct = parseFloat(av.ff_avgift_procent)||8.5;
-        const pStart = av.period_start ? new Date(av.period_start) : null;
-        const pEnd2  = av.period_end   ? new Date(av.period_end)   : null;
-        let veckor = 1;
-        if (pStart && pEnd2) { const ms = pEnd2 - pStart; veckor = Math.max(1, Math.round(ms/(7*86400000))); }
-        const totalFF = timmar * timpris * (pct/100);
-        const veckoBel = timmar && timpris ? Math.round(totalFF / veckor) : 0;
-        const beloppTxt = veckoBel ? veckoBel.toLocaleString('sv-SE') + ' kr' : '–';
-        return `<tr style="background:#f8f9ff;border-bottom:1px solid #e8eaf6;border-left:3px solid ${ac}">
-          <td style="padding:7px 10px"><span style="display:inline-flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border-radius:2px;background:${ac};display:inline-block"></span><span style="color:${ac};font-size:11px">Planerad</span></span></td>
-          <td style="padding:7px 10px;color:${ac}">${k.friday}</td>
-          <td style="padding:7px 10px;color:var(--muted2)">–</td>
-          <td style="padding:7px 10px;color:var(--muted2)">–</td>
-          <td style="padding:7px 10px;color:var(--muted2)">–</td>
-          <td style="padding:7px 10px;font-weight:600;color:#374151">${k.foretag}</td>
-          <td style="padding:7px 10px;text-align:right;color:${ac};font-weight:600">${beloppTxt}</td>
-          <td></td><td></td>
-        </tr>`;
+      ${Object.values(kommGroups).map(grp => {
+        const ac = grp.color;
+        const isMulti = grp.items.length > 1;
+        const groupRows = grp.items.map(k => {
+          const av = k.avtal;
+          const timmar = parseFloat(av.timmar_totalt)||0;
+          const timpris = parseFloat(av.timpris)||0;
+          const pct = parseFloat(av.ff_avgift_procent)||8.5;
+          const pStart = av.period_start ? new Date(av.period_start) : null;
+          const pEnd2  = av.period_end   ? new Date(av.period_end)   : null;
+          let veckor = 1;
+          if (pStart && pEnd2) { const ms = pEnd2 - pStart; veckor = Math.max(1, Math.round(ms/(7*86400000))); }
+          const totalFF = timmar * timpris * (pct/100);
+          const veckoBel = timmar && timpris ? Math.round(totalFF / veckor) : 0;
+          const beloppTxt = veckoBel ? veckoBel.toLocaleString('sv-SE') + ' kr' : '–';
+          const resursNamn = av.resurs || '–';
+          return `<tr style="background:#f8f9ff;border-bottom:1px solid #e8eaf6;border-left:3px solid ${ac}">
+            <td style="padding:7px 10px"><span style="display:inline-flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border-radius:2px;background:${ac};display:inline-block"></span><span style="color:${ac};font-size:11px">Planerad</span></span></td>
+            <td style="padding:7px 10px;color:${ac}">${k.friday}</td>
+            <td style="padding:7px 10px;color:var(--muted2)">–</td>
+            <td style="padding:7px 10px;color:var(--muted2)">–</td>
+            <td style="padding:7px 10px;color:var(--muted2)">–</td>
+            <td style="padding:7px 10px;font-weight:600;color:#374151">${k.foretag}${isMulti ? '<br><span style="font-size:10px;color:var(--muted2);font-weight:400">👤 ' + resursNamn + '</span>' : ''}</td>
+            <td style="padding:7px 10px;text-align:right;color:${ac};font-weight:600">${beloppTxt}</td>
+            <td style="padding:4px 8px">${!isMulti ? `<button onclick="skapaKommandeFakturor('${grp.friday}','${JSON.stringify([av.id]).replace(/'/g,"\\'")}','${grp.uthyrare.replace(/'/g,"\\'")}',1)" style="font-size:10px;padding:3px 7px;background:#eef2ff;color:#4f46e5;border:1px solid #c7d2fe;border-radius:5px;cursor:pointer">➕ Skapa</button>` : ''}</td>
+            <td></td>
+          </tr>`;
+        }).join('');
+        // Samlingsfaktura-rad för grupper med flera avtal
+        const samlingsRad = isMulti ? (() => {
+          const avtalIds = JSON.stringify(grp.items.map(k => k.avtal.id));
+          const totalBel = grp.items.reduce((sum, k) => {
+            const av = k.avtal;
+            const timmar = parseFloat(av.timmar_totalt)||0;
+            const timpris = parseFloat(av.timpris)||0;
+            const pct = parseFloat(av.ff_avgift_procent)||8.5;
+            const pStart = av.period_start ? new Date(av.period_start) : null;
+            const pEnd2  = av.period_end   ? new Date(av.period_end)   : null;
+            let veckor = 1;
+            if (pStart && pEnd2) veckor = Math.max(1, Math.round((pEnd2-pStart)/(7*86400000)));
+            return sum + (timmar && timpris ? Math.round(timmar*timpris*(pct/100)/veckor) : 0);
+          }, 0);
+          const safeIds = avtalIds.replace(/'/g, "\\'");
+          const safeUth = grp.uthyrare.replace(/'/g, "\\'");
+          return `<tr style="background:#eef2ff;border-bottom:2px solid #c7d2fe;border-left:3px solid ${ac}">
+            <td colspan="5" style="padding:6px 10px;color:#4f46e5;font-size:11px;font-weight:700">
+              📦 ${grp.items.length} fakturor — ${grp.uthyrare} — ${grp.friday}
+            </td>
+            <td style="padding:6px 10px;text-align:right;color:#4f46e5;font-weight:700;font-size:11px">
+              ≈ ${totalBel.toLocaleString('sv-SE')} kr
+            </td>
+            <td colspan="2" style="padding:4px 8px;text-align:right">
+              <button onclick="skapaKommandeFakturor('${grp.friday}','${safeIds}','${safeUth}',${grp.items.length})" style="font-size:11px;padding:4px 10px;background:#4f46e5;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600">
+                📦 Skapa samlingsfaktura
+              </button>
+            </td>
+          </tr>`;
+        })() : '';
+        return groupRows + samlingsRad;
       }).join('')}
       <tr><td colspan="9" style="height:2px;background:#c7d2fe"></td></tr>` : '';
 
@@ -5209,6 +5262,50 @@ async function generateFakturor() {
   showAffSub('faktura', document.getElementById('affBtn-faktura'));
   const typ = totalDays <= 20 ? '1 faktura vid slutförande' : 'månadsvis';
   showToast('✓ ' + generated.length + ' faktura' + (generated.length!==1?'r':'') + ' genererade (' + typ + ')');
+}
+
+// ─── SKAPA KOMMANDE FAKTUROR (inkl. samlingsfaktura) ─────
+async function skapaKommandeFakturor(friday, avtalIdsJson, uthyrareNamn, antal) {
+  const avtalIds = JSON.parse(avtalIdsJson);
+  const lastNr = fakturorList.map(x => parseInt(x.faktura_nr)||0).reduce((m,n) => Math.max(m,n), 200);
+  let nextNr = lastNr + 1;
+  const created = [];
+  const fridayDate = new Date(friday);
+  const mondayDate = new Date(fridayDate);
+  mondayDate.setDate(fridayDate.getDate() - 4);
+  const periodStart = mondayDate.toISOString().slice(0,10);
+  for (const avtalId of avtalIds) {
+    const a = avtalList2.find(x => x.id === avtalId);
+    if (!a) continue;
+    const timmar = parseFloat(a.timmar_totalt)||0;
+    const pris   = parseFloat(a.timpris)||0;
+    const pct    = parseFloat(a.ff_avgift_procent)||8.5;
+    const pStart = a.period_start ? new Date(a.period_start) : null;
+    const pEnd   = a.period_end   ? new Date(a.period_end)   : null;
+    const veckor = (pStart && pEnd) ? Math.max(1, Math.round((pEnd - pStart)/(7*86400000))) : 1;
+    const veckoBel = timmar && pris ? Math.max(Math.round(timmar * pris * (pct/100) / veckor), 995) : 995;
+    const newFak = {
+      id: genId(),
+      avtal_id: avtalId,
+      faktura_nr: nextNr++,
+      belopp_uthyrare: veckoBel,
+      period_start: periodStart,
+      period_end: friday
+    };
+    try {
+      const { data, error } = await getSB().from('fakturor').insert(newFak).select().single();
+      if (error) throw error;
+      fakturorList.push(data);
+      created.push(data);
+    } catch(e) { showToast('Fel: ' + e.message); }
+  }
+  if (created.length) {
+    renderFakturaList();
+    const msg = antal > 1
+      ? `✓ ${created.length} fakturor skapade för ${uthyrareNamn} (${friday})`
+      : `✓ Faktura skapad för ${friday}`;
+    showToast(msg);
+  }
 }
 
 // ─── SKAPA FAKTURA DIREKT → FÖRHANDSGRANSKNING ───────────
