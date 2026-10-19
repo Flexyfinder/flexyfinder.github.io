@@ -1631,7 +1631,52 @@ let syncTimer = null;
 let lastSyncHash = '';
 
 function genId() { return crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2); }
-function saveKunder() { localStorage.setItem('crm_kunder_v1', JSON.stringify(kunder)); }
+function saveKunder() { localStorage.setItem('crm_kunder_v1', JSON.stringify(kunder)); } // legacy cache only
+
+async function sbGetKunder() {
+  const { data, error } = await getSB().from('kunder').select('*').order('created_at');
+  if (error) throw new Error(error.message);
+  return (data || []).map(r => ({
+    id: r.id,
+    foretag: r.foretag || '',
+    orgNr: r.org_nr || '',
+    kundnr: r.kundnr || '',
+    roll: r.roll || '',
+    kontakt: r.kontakt || '',
+    epost: r.epost || '',
+    telefon: r.telefon || '',
+    fakturaEpost: r.faktura_epost || '',
+    fakturaAdress: r.faktura_adress || '',
+    postnr: r.postnr || '',
+    ort: r.ort || '',
+    createdAt: r.created_at || Date.now()
+  }));
+}
+
+async function sbSaveKund(row) {
+  const r = {
+    id: row.id,
+    foretag: row.foretag || '',
+    org_nr: row.orgNr || '',
+    kundnr: row.kundnr || '',
+    roll: row.roll || '',
+    kontakt: row.kontakt || '',
+    epost: row.epost || '',
+    telefon: row.telefon || '',
+    faktura_epost: row.fakturaEpost || '',
+    faktura_adress: row.fakturaAdress || '',
+    postnr: row.postnr || '',
+    ort: row.ort || '',
+    created_at: row.createdAt || Date.now()
+  };
+  const { error } = await getSB().from('kunder').upsert(r, { onConflict: 'id' });
+  if (error) throw new Error(error.message);
+}
+
+async function sbDeleteKund(id) {
+  const { error } = await getSB().from('kunder').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+}
 
 // ─── SUPABASE API ────────────────────────────────────────
 let _sb = null;
@@ -1746,9 +1791,8 @@ async function autoAvslutaAvtal() {
 
 async function loadFromSupabase() {
   setStatus('syncing');
-  kunder = JSON.parse(localStorage.getItem('crm_kunder_v1') || '[]');
   try {
-    const [c, cl, fb, li, kk, av, fak] = await Promise.all([sbGetContacts(), sbGetCalls(), sbGetFbPosts(), sbGetLinkedinKontakter(), sbGetKontroller(), sbGetAvtal2(), sbGetFakturor()]);
+    const [c, cl, fb, li, kk, av, fak, ku] = await Promise.all([sbGetContacts(), sbGetCalls(), sbGetFbPosts(), sbGetLinkedinKontakter(), sbGetKontroller(), sbGetAvtal2(), sbGetFakturor(), sbGetKunder()]);
     contacts     = c || [];
     calls        = cl || [];
     fbPosts      = fb || [];
@@ -1756,6 +1800,7 @@ async function loadFromSupabase() {
     kontroller   = kk || [];
     avtalList2   = av || [];
     fakturorList = fak || [];
+    kunder       = ku || [];
     lastSyncHash = JSON.stringify([contacts, calls]);
     setStatus('ok');
     await autoAvslutaAvtal();
@@ -5701,7 +5746,7 @@ function openKundkortModal(id) {
   document.getElementById('kundkortModal').classList.add('open');
 }
 
-function saveKundkort() {
+async function saveKundkort() {
   const foretag = document.getElementById('kkForetag').value.trim();
   if (!foretag) { showToast('Fyll i företagsnamn'); return; }
   const id = document.getElementById('kkEditId').value || genId();
@@ -5719,22 +5764,30 @@ function saveKundkort() {
     ort:           document.getElementById('kkOrt').value.trim(),
     createdAt:     Date.now()
   };
-  const idx = kunder.findIndex(x=>x.id===id);
-  if (idx>=0) kunder[idx]=row; else kunder.push(row);
-  saveKunder();
-  closeModal('kundkortModal');
-  renderKundregister();
-  showToast('✓ Kund sparad');
+  try {
+    await sbSaveKund(row);
+    const idx = kunder.findIndex(x=>x.id===id);
+    if (idx>=0) kunder[idx]=row; else kunder.push(row);
+    closeModal('kundkortModal');
+    renderKundregister();
+    showToast('✓ Kund sparad');
+  } catch(e) {
+    showToast('❌ Fel vid sparning: ' + e.message);
+  }
 }
 
-function doDeleteKund() {
+async function doDeleteKund() {
   const id = document.getElementById('kkEditId').value;
   if (!id || !confirm('Är du säker på att du vill radera kunden?')) return;
-  kunder = kunder.filter(x=>x.id!==id);
-  saveKunder();
-  closeModal('kundkortModal');
-  renderKundregister();
-  showToast('Kund raderad');
+  try {
+    await sbDeleteKund(id);
+    kunder = kunder.filter(x=>x.id!==id);
+    closeModal('kundkortModal');
+    renderKundregister();
+    showToast('Kund raderad');
+  } catch(e) {
+    showToast('❌ Fel vid radering: ' + e.message);
+  }
 }
 
 // ─── AUTOCOMPLETE FÖR AVTAL ──────────────────────────────
