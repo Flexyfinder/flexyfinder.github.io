@@ -2828,7 +2828,7 @@ function showToast(msg) {
   setTimeout(() => t.remove(), 3000);
 }
 
-function saveOtherSettings() {
+async function saveOtherSettings() {
   const orgNrVal  = document.getElementById('setupOrgNr')?.value.trim();
   const adressVal = document.getElementById('setupAdress')?.value.trim();
   const telVal    = document.getElementById('setupTelefon')?.value.trim();
