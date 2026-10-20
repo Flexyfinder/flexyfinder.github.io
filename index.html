@@ -4476,22 +4476,12 @@ async function saveAvtal() {
 
 // ─── RESEND HTML-EMAIL HELPER ─────────────────────────────
 async function sendEmailViaResend(to, subject, htmlBody) {
-  // Anropas via Supabase Edge Function för att undvika CORS
-  const fnUrl = `${SUPABASE_URL}/functions/v1/send-email`;
-  const res = await fetch(fnUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${SUPABASE_KEY}`,
-      'apikey': SUPABASE_KEY
-    },
-    body: JSON.stringify({ to, subject, html: htmlBody })
+  // Använder Supabase-klientens functions.invoke() för korrekt CORS-hantering
+  const { data, error } = await getSB().functions.invoke('send-email', {
+    body: { to, subject, html: htmlBody }
   });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || err.message || `HTTP ${res.status}`);
-  }
-  return res.json();
+  if (error) throw new Error(error.message || String(error));
+  return data;
 }
 
 // ─── POPUP: SKICKA AVTAL TILL BÅDA PARTER EFTER NY MATCH ─
