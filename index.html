@@ -4503,26 +4503,31 @@ async function visaSkickaAvtalPopup(avtalId) {
     return `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;background:#f8fafc;margin:0;padding:0"><div style="max-width:600px;margin:32px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)"><div style="background:#6366f1;padding:28px 32px"><div style="color:#fff;font-size:22px;font-weight:700">FlexyFinder AB</div><div style="color:#c7d2fe;font-size:13px;margin-top:4px">Uppdragsavtal</div></div><div style="padding:32px"><p style="color:#1e293b;font-size:15px;margin:0 0 16px">Hej ${kontakt||''},</p><p style="color:#475569;font-size:14px;margin:0 0 24px;line-height:1.6">Bifogat finner ni ert uppdragsavtal via FlexyFinder.</p><div style="background:#f1f5f9;border-radius:8px;padding:16px 20px;margin-bottom:24px"><div style="font-size:12px;color:#64748b;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">Uppdragsdetaljer</div><div style="color:#1e293b;font-size:14px"><strong>Uppdrag:</strong> ${uppdrag}</div><div style="color:#1e293b;font-size:14px;margin-top:6px"><strong>Period:</strong> ${period}</div><div style="color:#1e293b;font-size:14px;margin-top:6px"><strong>Avtalsnummer:</strong> ${avtalNr}</div></div><a href="${avLink}" style="display:inline-block;background:#6366f1;color:#fff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:700;font-size:15px">Öppna avtalet online</a><p style="color:#94a3b8;font-size:12px;margin-top:32px;line-height:1.5">Med vänliga hälsningar,<br><strong style="color:#475569">FlexyFinder AB</strong><br>lars@flexyfinder.com</p></div></div></body></html>`;
   }
 
+  function byggAvtalText(kontakt, avLink) {
+    const uppdrag = [a.yrkesroll, a.resurs].filter(Boolean).join(' – ') || '–';
+    return `Hej ${kontakt||''},\n\nBifogat finner ni ert uppdragsavtal via FlexyFinder.\n\nUppdrag: ${uppdrag}\nPeriod: ${period}\nAvtalsnummer: ${avtalNr}\n\nÖppna avtalet online:\n${avLink}\n\nMed vänliga hälsningar,\nFlexyFinder AB\nlars@flexyfinder.com`;
+  }
+
   window._sendAvtalUth = async function(btn) {
-    btn.disabled = true; btn.textContent = '⏳ Skickar...';
-    try {
-      await sendEmailViaResend(motUth, `Uppdragsavtal ${avtalNr} – FlexyFinder AB`, byggAvtalHtml(a.uthyrare_kontakt, avLinkUth));
-      const { error } = await getSB().from('avtal').update({ skickat_uthyrare: today }).eq('id', avtalId);
-      if (!error) { a.skickat_uthyrare = today; renderAvtalCards(); }
-      btn.textContent = '✓ Skickat!'; btn.style.background = '#16a34a';
-      showToast('✓ Avtal skickat till uthyrare');
-    } catch(e) { btn.disabled = false; btn.textContent = '📧 Skicka avtal till uthyrare'; showToast('❌ ' + e.message); }
+    const subject = encodeURIComponent(`Uppdragsavtal ${avtalNr} – FlexyFinder AB`);
+    const body    = encodeURIComponent(byggAvtalText(a.uthyrare_kontakt, avLinkUth));
+    window.open(`mailto:${motUth}?subject=${subject}&body=${body}`, '_blank');
+    // Markera som skickat i Supabase
+    const { error } = await getSB().from('avtal').update({ skickat_uthyrare: today }).eq('id', avtalId);
+    if (!error) { a.skickat_uthyrare = today; renderAvtalCards(); }
+    btn.textContent = '✓ Outlook öppnat'; btn.style.background = '#16a34a';
+    showToast('📧 Outlook öppnat — skicka mailet till uthyraren');
   };
 
   window._sendAvtalInh = async function(btn) {
-    btn.disabled = true; btn.textContent = '⏳ Skickar...';
-    try {
-      await sendEmailViaResend(motInh, `Uppdragsavtal ${avtalNr} – FlexyFinder AB`, byggAvtalHtml(a.inhyrare_kontakt, avLinkInh));
-      const { error } = await getSB().from('avtal').update({ skickat_kund: today }).eq('id', avtalId);
-      if (!error) { a.skickat_kund = today; renderAvtalCards(); }
-      btn.textContent = '✓ Skickat!'; btn.style.background = '#f97316';
-      showToast('✓ Avtal skickat till inhyrare');
-    } catch(e) { btn.disabled = false; btn.textContent = '📧 Skicka avtal till inhyrare'; showToast('❌ ' + e.message); }
+    const subject = encodeURIComponent(`Uppdragsavtal ${avtalNr} – FlexyFinder AB`);
+    const body    = encodeURIComponent(byggAvtalText(a.inhyrare_kontakt, avLinkInh));
+    window.open(`mailto:${motInh}?subject=${subject}&body=${body}`, '_blank');
+    // Markera som skickat i Supabase
+    const { error } = await getSB().from('avtal').update({ skickat_kund: today }).eq('id', avtalId);
+    if (!error) { a.skickat_kund = today; renderAvtalCards(); }
+    btn.textContent = '✓ Outlook öppnat'; btn.style.background = '#f97316';
+    showToast('📧 Outlook öppnat — skicka mailet till inhyraren');
   };
 
   async function markSkickat(part) {
