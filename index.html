@@ -4494,7 +4494,7 @@ async function visaSkickaAvtalPopup(avtalId) {
   const avLinkUth = `${FLEXYFINDER_PAGES_URL}/avtal.html?nr=${encodeURIComponent(avtalNr)}&t=${avToken}&mottagare=uthyrare`;
   const avLinkInh = `${FLEXYFINDER_PAGES_URL}/avtal.html?nr=${encodeURIComponent(avtalNr)}&t=${avToken}&mottagare=inhyrare`;
   const motUth = a.uthyrare_epost || a.uthyrare_faktura_epost || '';
-  const motInh = a.inhyrare_epost || '';
+  const motInh = a.inhyrare_epost || a.inhyrare_faktura_epost || '';
   const period = [a.period_start, a.period_end].filter(Boolean).join(' – ') || '–';
   const today = new Date().toISOString().slice(0,10);
 
