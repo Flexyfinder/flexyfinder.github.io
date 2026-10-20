@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FlexyFinder – Faktura</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+/* ── KONFIG: fyll i dina värden och ladda upp till GitHub Pages ── */
+</style>
+</head>
+<body>
+<div id="loading" style="font-family:Arial,sans-serif;padding:40px;text-align:center;color:#555">Laddar dokument…</div>
+<div id="error" style="display:none;font-family:Arial,sans-serif;padding:40px;text-align:center;color:#dc2626;font-size:16px">
+  <strong>Länk ej giltig.</strong><br>Kontakta FlexyFinder AB om du har fått denna länk via e-post.
+</div>
+<div id="doc" style="display:none"></div>
+
+<script>
+/* ══════════════════════════════════════════════════════════
+   ⚙️  KONFIG – fyll i dina Supabase-uppgifter innan uppladdning
+   ══════════════════════════════════════════════════════════ */
+const SUPABASE_URL = 'FYLL_I_DIN_SUPABASE_URL';   // t.ex. https://xyzxyz.supabase.co
+const SUPABASE_KEY = 'FYLL_I_DIN_ANON_KEY';        // anon/public key från Supabase
+
+/* FlexyFinder AB – företagsuppgifter (visas på fakturan) */
+const FF_ORG_NR  = '559488-9148';
+const FF_ADRESS  = 'Sköntorpsvägen 124, 120 55 Årsta';
+const FF_TELEFON = '';
+
+/* ══════════════════════════════════════════════════════════ */
+
+const params = new URLSearchParams(location.search);
+const TOKEN  = params.get('t');
+const NR     = params.get('nr');
+
+function show(id) {
+  ['loading','error','doc'].forEach(x => document.getElementById(x).style.display = x===id ? '' : 'none');
+}
+
+async function load() {
+  if (!TOKEN) { show('error'); return; }
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  // Hämta faktura via token
+  const { data: f, error: e1 } = await sb.from('fakturor').select('*').eq('share_token', TOKEN).single();
+  if (e1 || !f) { show('error'); return; }
+
+  // Hämta kopplat avtal
+  let a = {};
+  if (f.avtal_id) {
+    const { data: av } = await sb.from('avtal').select('*').eq('id', f.avtal_id).single();
+    if (av) a = av;
+  }
+
+  document.title = `${NR||''} Faktura – FlexyFinder`;
+  document.getElementById('doc').innerHTML = renderFaktura(f, a);
+  show('doc');
+}
+
+function renderFaktura(f, a) {
+  const isKredit = (parseFloat(f.belopp_uthyrare)||0) < 0;
+  const exkl     = Math.round(parseFloat(f.belopp_uthyrare)||0);
+  const moms     = Math.round(exkl * 0.25);
+  const inkl     = exkl + moms;
+  const fkr      = v => v.toLocaleString('sv-SE') + ' kr';
+  const ffNr     = 'FF-' + (f.faktura_nr || '?');
+  const fakDatum = f.faktura_skickad || new Date().toISOString().slice(0,10);
+  const dueDate  = (() => { const d = new Date(fakDatum); d.setDate(d.getDate()+10); return d.toISOString().slice(0,10); })();
+  const orgNr    = FF_ORG_NR || '–';
+  const vatNr    = 'SE' + orgNr.replace(/\D/g,'') + '01';
+  const period   = [f.period_start||a.period_start, f.period_end||a.period_end].filter(Boolean).join(' – ') || '–';
+  const kundNamn = a.uthyrare_foretag || f.foretag || '–';
+  const kundAdr  = [a.uthyrare_fakturaadress, [a.uthyrare_postnr, a.uthyrare_ort].filter(Boolean).join(' ')].filter(Boolean).join(', ') || '–';
+  const kundOrgNr= a.uthyrare_org_nr ? 'Org.nr: ' + a.uthyrare_org_nr : '';
+  const rollResurs = [a.yrkesroll, a.resurs].filter(Boolean).join(' – ');
+  const avnrFaktura = a.match_id || (a.avtal_nummer ? 'FF-' + new Date().getFullYear() + '-' + String(a.avtal_nummer).padStart(4,'0') : '');
+  const beskrivn = avnrFaktura || rollResurs || 'Personaluthyrning';
+  const timspec  = (a.timmar_totalt && a.timpris)
+    ? `<tr><td colspan="2" style="padding:4px 0;color:#555;font-size:12px">${a.antal_personer||1} pers × ${a.timmar_totalt} h à ${Math.round(parseFloat(a.timpris)*(1-(parseFloat(a.ff_avgift_procent)||8.5)/100))} kr/h</td></tr>` : '';
+
+  return `
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Helvetica Neue',Arial,sans-serif;font-size:13px;color:#1a1d2e;background:#fff;padding:40px}
+.page{max-width:740px;margin:0 auto}
+.header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:36px;padding-bottom:20px;border-bottom:3px solid #2563eb}
+.logo-text{font-size:22px;font-weight:800;color:#2563eb;letter-spacing:-0.5px}
+.logo-text span{color:#1a1d2e}
+.logo-sub{font-size:11px;color:#555;line-height:1.7;margin-top:4px}
+.meta{text-align:right;font-size:12px;line-height:1.8;color:#555}
+.meta strong{font-size:18px;color:#1a1d2e;display:block;margin-bottom:4px}
+.parties{display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-bottom:28px}
+.party h4{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#999;margin-bottom:6px}
+.party p{font-size:13px;line-height:1.7;color:#333}
+table{width:100%;border-collapse:collapse;margin-bottom:28px}
+thead tr{background:#f4f6fa}
+th{padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#666;font-weight:600}
+th:last-child,td:last-child{text-align:right}
+tbody tr{border-bottom:1px solid #e8eaf0}
+td{padding:10px 12px;font-size:13px;color:#333}
+.totals{margin-left:auto;width:300px}
+.totals td{padding:5px 12px;font-size:13px}
+.totals .total-row td{font-weight:800;font-size:15px;border-top:2px solid #1a1d2e;padding-top:10px}
+.payment{margin-top:28px;padding:18px;background:#f4f6fa;border-radius:8px;font-size:12px;line-height:2;color:#555}
+.payment strong{color:#1a1d2e}
+.footer{margin-top:36px;font-size:10px;color:#aaa;text-align:center;border-top:1px solid #e8eaf0;padding-top:12px}
+.print-bar{position:fixed;bottom:20px;right:20px;display:flex;gap:8px}
+@media print{body{padding:0}.print-bar{display:none}}
+</style>
+<div class="page">
+  <div class="header">
+    <div>
+      <div class="logo-text">Flexy<span>Finder</span></div>
+      <div class="logo-sub">FlexyFinder AB<br>${FF_ADRESS||'–'}<br>Org.nr: ${orgNr}<br>VAT: ${vatNr}${FF_TELEFON?'<br>'+FF_TELEFON:''}<br>lars@flexyfinder.com</div>
+    </div>
+    <div class="meta">
+      <strong>${isKredit?'KREDITFAKTURA':'FAKTURA'}</strong>
+      <div><b>Fakturanummer:</b> ${ffNr}</div>
+      <div><b>Fakturadatum:</b> ${fakDatum}</div>
+      <div><b>Förfallodatum:</b> ${dueDate}</div>
+      ${isKredit?'<div style="color:#dc2626;font-size:11px;font-weight:700;margin-top:4px">KREDITFAKTURA</div>':''}
+    </div>
+  </div>
+
+  <div class="parties">
+    <div class="party">
+      <h4>Från</h4>
+      <p><strong>FlexyFinder AB</strong><br>${FF_ADRESS||''}<br>Org.nr: ${orgNr}</p>
+    </div>
+    <div class="party">
+      <h4>Till</h4>
+      <p><strong>${kundNamn}</strong><br>${kundAdr}<br>${kundOrgNr}</p>
+    </div>
+  </div>
+
+  <table>
+    <thead><tr><th>Beskrivning</th><th>Period</th><th>Belopp exkl. moms</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>
+          ${beskrivn}
+          ${rollResurs && avnrFaktura ? `<br><span style="font-size:11px;color:#888">${rollResurs}</span>` : ''}
+          ${(a.inhyrare_foretag||a.foretag)||(a.uthyrare_foretag) ? `<br><span style="font-size:11px;color:#888">${[a.inhyrare_foretag||a.foretag, a.uthyrare_foretag].filter(Boolean).join(' → ')}</span>` : ''}
+          ${timspec?'<br><span style="font-size:11px;color:#888">'+a.antal_personer+(a.antal_personer>1?' pers':'')+(a.timmar_totalt?' × '+a.timmar_totalt+' h':'')+'</span>':''}
+        </td>
+        <td style="color:#555">${period}</td>
+        <td style="font-weight:700">${fkr(exkl)}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <table class="totals">
+    <tbody>
+      <tr><td>Netto exkl. moms</td><td>${fkr(exkl)}</td></tr>
+      <tr><td>Moms 25%</td><td>${fkr(moms)}</td></tr>
+      <tr class="total-row"><td><strong>Att betala</strong></td><td><strong>${fkr(inkl)}</strong></td></tr>
+    </tbody>
+  </table>
+
+  <div class="payment">
+    <strong>Betalningsinformation</strong><br>
+    Bankgiro: <strong>5128-4099</strong> &nbsp;|&nbsp; Betalningstid: <strong>10 dagar netto</strong><br>
+    OCR/Referens: <strong>${ffNr}</strong><br>
+    Dröjsmålsränta: Referensräntan + 8 procentenheter
+  </div>
+
+  <div class="footer">FlexyFinder AB · ${orgNr} · lars@flexyfinder.com</div>
+</div>
+<div class="print-bar">
+  <button onclick="window.print()" style="background:#2563eb;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:13px;cursor:pointer;font-weight:700">🖨 Skriv ut / Spara PDF</button>
+</div>`;
+}
+
+load();
+</script>
+</body>
+</html>
